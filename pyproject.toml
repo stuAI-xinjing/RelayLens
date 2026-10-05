@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "relaylens"
+version = "0.2.0"
+description = "Reproducible black-box audits for OpenAI-compatible model gateways"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "RelayLens contributors"}]
+dependencies = []
+
+[project.scripts]
+relaylens = "relaylens.audit:main"
