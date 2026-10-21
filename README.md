@@ -30,6 +30,18 @@ python -m pip install -e .
 relaylens --base-url https://gateway.example/v1 --model example-model --api-key %RELAYLENS_API_KEY% --out report.json --public-out report-public.json
 ```
 
+When auditing a claimed GPT or Claude model, select the target explicitly. The
+target records the provider claim; it does not turn a model name into proof:
+
+```text
+relaylens --base-url https://gateway.example/v1 --model gpt-6-astra --target-model gpt-6-astra --api-key %RELAYLENS_API_KEY%
+```
+
+Supported targets are GPT-6 Astra, GPT-6.1 Sol, GPT-6 Luna, GPT-5.6 Sol,
+Claude Opus 5, Claude Sonnet 5, Claude Opus 4.8, Claude Opus 4.6, Claude
+Sonnet 4.6 and Claude Haiku 4.5. The report keeps `model_requested` (what was
+sent to the gateway) separate from `target_model` (what the gateway claims).
+
 Use `--api responses` for Responses-compatible gateways or `--api chat` for Chat Completions gateways. `--route direct` bypasses environment proxies; `--proxy http://proxy.example:8080` selects an explicit HTTP proxy. Prefer `RELAYLENS_API_KEY` or interactive secret input; do not put keys in shell history or reports.
 
 For a reproducible comparison, run candidate and reference with the same `--seed`, `--task-rounds`, API style, model prompt suite, and route policy. Compare task IDs, `prompt_hash`, `suite_version` and `suite_commitment`, not free-form prose. A result is not upgraded to an identity claim merely because scores are close.
@@ -45,6 +57,11 @@ The harness deliberately reports separate dimensions:
 3. **Reference similarity**: paired case differences only when prompt hashes and suite versions match.
 
 The report labels evidence conservatively: **D** means unusable or missing the requested catalog/response, **C** means an independent protocol or task layer mismatched, **B** means healthy evidence without a trusted reference, and **A** means behavior was close to a trusted reference for this suite only. No label proves a private upstream identity. A gateway can imitate names, reject or silently ignore parameters, route requests to different backends, or change behavior over time. Publish the suite version, seed, API style, route class, timestamps, and raw HTTP evidence needed to reproduce the claim.
+
+If `--target-model` is supplied, use a trusted official run with the same
+target, seed, API style, reasoning setting and suite commitment as the
+reference. A healthy response from a lower tier is not evidence that it is a
+flagship target.
 
 ## Design basis
 

@@ -3,6 +3,7 @@ import unittest
 from relaylens.tasks import digest, evaluate_expression, grade_expression, suite
 from relaylens.stats import paired, summary, wilson
 from relaylens.audit import verdict
+from relaylens.model_targets import TARGETS, profile
 
 
 class TaskTests(unittest.TestCase):
@@ -33,6 +34,12 @@ class TaskTests(unittest.TestCase):
                   "cases":[{"family":"parameter","completed":True},{"family":"logic","completed":True,"grade":{"passed":True}}],
                   "tool_summary":{"call_detected":True,"followup_completed":True,"result_used":True}}
         self.assertEqual(verdict(report)["grade"], "B")
+
+    def test_targets_are_limited_to_gpt_and_claude(self):
+        self.assertTrue(TARGETS)
+        self.assertEqual({x["family"] for x in TARGETS.values()}, {"gpt", "claude"})
+        self.assertEqual(profile("gpt-6-astra")["tier"], "flagship")
+        self.assertIsNone(profile("qwen3.7-plus"))
 
     def test_paired_reference_requires_same_prompt_hash(self):
         candidate = [{"id":"logic-1","case_id":"logic-1","family":"logic","prompt_hash":"same","completed":True,"grade":{"passed":True}}]

@@ -13,6 +13,7 @@ from pathlib import Path
 from .privacy import private_report
 from .stats import summary
 from .stats import paired
+from .model_targets import TARGET_CHOICES, profile
 from .suite_loader import load_suite
 from .transport import Client, extract
 
@@ -64,9 +65,11 @@ def run(args):
     seed = args.seed if args.seed is not None else random.SystemRandom().randrange(1, 2**63)
     client = Client(args.base_url,args.api_key,api=args.api,route=args.route,proxy=args.proxy,
                     timeout=args.timeout,max_tokens=args.max_output_tokens)
-    report={"schema_version":"0.3","suite_version":suite_version,"suite_source":suite_source,
+    target = profile(args.target_model)
+    report={"schema_version":"0.4","suite_version":suite_version,"suite_source":suite_source,
             "suite_commitment":suite_commitment,"started_at_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
-            "base_url":client.base,"api_style":args.api,"model_requested":args.model,"seed":seed,
+            "base_url":client.base,"api_style":args.api,"model_requested":args.model,
+            "target_model":args.target_model,"target":target,"seed":seed,
             "network":{"route":args.route,"proxy_configured":bool(args.proxy)},"cases":[]}
 
     def add(case_id,family,prompt,call,task=None):
@@ -117,6 +120,8 @@ def run(args):
 def main(argv=None):
     p=argparse.ArgumentParser(prog="relaylens",description="Reproducible black-box audit for OpenAI-compatible model gateways")
     p.add_argument("--base-url",required=True); p.add_argument("--model",required=True); p.add_argument("--api-key")
+    p.add_argument("--target-model", choices=TARGET_CHOICES,
+                   help="claimed GPT or Claude model; reports the claim separately from observed behavior")
     p.add_argument("--api",choices=("responses","chat"),default="responses"); p.add_argument("--route",choices=("env","direct"),default="env"); p.add_argument("--proxy")
     p.add_argument("--seed",type=int); p.add_argument("--task-rounds",type=int,default=3); p.add_argument("--task-effort",default="high",choices=EFFORTS)
     p.add_argument("--suite-module", help="optional private Python suite defining suite(seed, rounds)")
@@ -138,7 +143,9 @@ def main(argv=None):
     if args.public_out:
         Path(args.public_out).write_text(json.dumps(private_report(report,(args.api_key or "",)),ensure_ascii=False,indent=2),encoding="utf-8")
     print(json.dumps({"report":str(Path(args.out).resolve()),"public_report":str(Path(args.public_out).resolve()) if args.public_out else None,
-                      "verdict":report.get("verdict"),"model_listed":args.model in report["models"].get("ids",[]),"task_summary":report.get("task_summary"),"tool_summary":report["tool_summary"]},ensure_ascii=False,indent=2))
+                      "verdict":report.get("verdict"),"model_listed":args.model in report["models"].get("ids",[]),
+                      "target_model":report.get("target_model"),"target_family":(report.get("target") or {}).get("family"),
+                      "task_summary":report.get("task_summary"),"tool_summary":report["tool_summary"]},ensure_ascii=False,indent=2))
     return 0
 
 
