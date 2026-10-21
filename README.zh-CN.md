@@ -13,6 +13,16 @@ python -m pip install -e .
 relaylens --base-url https://gateway.example/v1 --model example-model
 ```
 
+如果要核验中转站声称的 GPT 或 Claude 型号，请显式选择目标型号：
+
+```powershell
+relaylens --base-url https://gateway.example/v1 --model gpt-6-astra --target-model gpt-6-astra
+```
+
+支持 GPT-6 Astra、GPT-6.1 Sol、GPT-6 Luna、GPT-5.6 Sol，以及 Claude
+Opus 5、Sonnet 5、Opus 4.8、Opus 4.6、Sonnet 4.6、Haiku 4.5。报告会把
+`model_requested`（实际发给网关的型号）与 `target_model`（网关声称的型号）分开保存。
+
 程序会隐藏读取 API Key。也可以先设置：
 
 ```powershell
