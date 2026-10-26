@@ -43,7 +43,10 @@ def configure(args):
     route = ask('线路：1=系统/VPN，2=直连，3=指定 HTTP 代理','1')
     args.route = 'direct' if route == '2' else 'env'
     args.proxy = ask('HTTP 代理地址') if route == '3' else None
-    args.task_rounds = integer('每类随机题数量（8类）',5)
+    pack = ask('题库：1=标准8类，2=完整14类（含前后端工程题）','2')
+    args.pack = 'standard' if pack=='1' else 'challenge'
+    args.context_records = integer('上下文版本检索记录数',1024,32) if args.pack=='challenge' else 1024
+    args.task_rounds = integer('每类随机题数量',5)
     args.repeats = integer('同一组题重复次数',3,1)
     args.task_effort = ask('任务思考档（可填 omit 使用服务器默认）','high')
     args.fingerprint_samples = integer('每种回答分布探针采样数，5种；0=跳过，20起可检验',0)
@@ -52,11 +55,12 @@ def configure(args):
         seed = ask('请输入非负整数或留空')
     args.seed = int(seed) if seed else None
     args.reference_report = ask('可选：官方参考 JSON 报告路径').strip('"') or None
+    args.reference_dir = ask('可选：多个官方型号参考 JSON 所在文件夹').strip('"') or None
     args.trust_reference = False
-    if args.reference_report:
-        args.trust_reference = ask('你是否已核实此报告来自所选官方模型？y/n','n').lower() == 'y'
-    args.timeout = integer('每次请求超时（秒）',120,1)
-    args.max_output_tokens = integer('每次最大输出 token（含推理预算，过小会截断）',4096,128)
+    if args.reference_report or args.reference_dir:
+        args.trust_reference = ask('你是否已核实全部参考均来自各自标注的官方模型？y/n','n').lower() == 'y'
+    args.timeout = integer('每次请求超时（秒）',300 if args.pack=='challenge' else 120,1)
+    args.max_output_tokens = integer('每次最大输出 token（含推理预算，过小会截断）',32768 if args.pack=='challenge' else 4096,128)
     args.stream = ask('流式输出以记录首个文本 token 耗时？y/n','y').lower() == 'y'
     args.egress = ask('查询本次网络出口地区？y/n','n').lower() == 'y'
     args.out = ask('报告路径',str(Path('reports') / time.strftime('relaylens_%Y%m%d_%H%M%S.json')))
@@ -64,6 +68,6 @@ def configure(args):
     args.open_report = True
     args.progress = True
     parameters = 4 if args.api == 'messages' else 5
-    estimate = parameters + 8*args.task_rounds*args.repeats + 2*args.repeats + 5*args.fingerprint_samples
+    estimate = 1 + parameters + (14 if args.pack=='challenge' else 8)*args.task_rounds*args.repeats + 2*args.repeats + 5*args.fingerprint_samples
     print(f'\n本轮预计约 {estimate} 次 API 请求，按站点实际计费。结果写入 {args.out}。\n')
     return args

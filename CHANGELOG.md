@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+- Added an opt-in 14-family challenge pack; the wizard selects it by default. New coverage includes constrained optimization/counting, exact probability, relational aggregation, versioned context, frontend async state and backend idempotent transactions.
+- Added multi-model GPT/Claude reference panels and offline report comparison. Preserve overlapping matches, reject invalid/self/duplicate-ID references, and correct for multiple comparisons.
+- Hardened evidence: cluster by prompt, use conservative bounded-loss and exact regression bounds, separate incomplete/service failures from completed-answer deficits, and expose repeat reliability and saturation warnings.
+- Fixed typed JSON grading, duplicate keys/nonfinite values, short-circuit expression semantics, and tool false positives with exact typed results and a fresh receipt nonce.
+- Hardened malformed/SSE completion handling, added the current Chat output-budget field with explicit legacy compatibility, and accounted for documented GPT Chat tool limitations without suppressing probes.
+- Improved HTML readability and expanded public-export scrubbing of answers, expected values, error bodies, gateway aliases and egress metadata.
+- Documented community framework selection, inference assumptions and the absence of live official-model calibration. No model-identification accuracy is claimed from software tests.
+
 ## 0.4.0
 
 - Added an independent Windows wizard and responsive local HTML reports, with no pip requirement.

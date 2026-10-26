@@ -25,6 +25,8 @@ def summary(rows):
                      "completed_accuracy":passed/len(completed) if completed else None,
                      "wilson_95":wilson(passed,len(items)),
                      "format_passed":sum(bool(x["grade"].get("format_passed")) for x in completed)}
+        out[family]['unique_prompts'] = len({x.get('prompt_hash',x.get('case_id',x.get('id'))) for x in items})
+        out[family]['interval_note'] = 'Attempt-level Wilson interval is descriptive; repeats are correlated. Reference inference clusters identical prompts.'
     return out
 
 
@@ -36,8 +38,9 @@ def paired(candidate, reference, seed=0, samples=2000):
         ref=refs.get(row["id"])
         if ref is None or row.get("prompt_hash") != ref.get("prompt_hash"):
             mismatches.append(row["id"]); continue
-        if row.get("completed") and ref.get("completed"):
-            diffs[row["case_id"]].append(int(ref["grade"]["passed"])-int(row["grade"]["passed"]))
+        diffs[row.get('prompt_hash') or row['case_id']].append(
+            int(bool(ref.get('completed') and ref['grade']['passed']))-
+            int(bool(row.get('completed') and row['grade']['passed'])))
     values=[sum(v)/len(v) for v in diffs.values()]
     if not values: return {"n_cases":0,"mismatches":mismatches,"loss":None,"bootstrap_95":None}
     rng=random.Random(seed)

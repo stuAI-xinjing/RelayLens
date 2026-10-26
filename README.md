@@ -1,6 +1,6 @@
 # RelayLens
 
-A standalone, standard-library Python audit tool for GPT and Claude gateway claims. It combines fresh deterministic tasks, tool round trips, repeated trials, categorical response fingerprints and latency diagnostics. Python 3.10+; no runtime dependencies.
+A standalone, standard-library Python audit tool for GPT and Claude gateway claims. Version 0.5 adds a 14-family challenge pack, frontend/backend reasoning tasks, multi-model reference panels and offline comparison. Python 3.10+; no runtime dependencies. It measures observed capability, not private model identity.
 
 [中文完整使用说明](README.zh-CN.md)
 
@@ -20,10 +20,12 @@ API styles: `responses` (default), `chat` (Chat Completions), `messages` (native
 
 ## Evidence
 
-- Eight generated families: ordering logic, arithmetic, restricted-expression repair, strict instructions, shortest paths, scheduling optimization, long-context retrieval and state tracking.
+- `--pack standard` preserves eight generated families: ordering logic, arithmetic, restricted-expression repair, strict instructions, shortest paths, scheduling optimization, context retrieval and state tracking.
+- `--pack challenge` retains those eight and adds constrained selection/counting, exact conditional probability, relational aggregation, versioned context retrieval, frontend asynchronous state and backend idempotent transactions. The wizard defaults to this pack. These engineering tasks test semantics; they do not build or execute a full generated app.
+- Challenge context size is configurable with `--context-records 1024`. Character count and actual API usage are recorded separately; record counts are not advertised as token context size.
 - Exact local solvers and unseen boundary cases; generated answers are not sent in prompts. Generated code is never executed.
 - Repeated, shuffled trials expose pass/fail changes on the same tasks. Different returned labels and stochastic variation are weak routing signals, never proof of mixing.
-- Tool names vary by seed; arguments and use of every tool-result field are checked. All three protocols preserve the original user request and assistant context.
+- Tool names and receipt nonces vary by seed. Exact typed JSON arguments and tool-result objects are checked, preventing substring coincidences from passing. All three protocols preserve the original user request and assistant context.
 - Latency median, P95, MAD and first visible text-token timing are grouped by task family, with failed requests excluded from timing but included in task accuracy.
 - Optional `--fingerprint-samples 20` adds 100 requests over five categorical prompts. Reference comparison reports JSD and a permutation test with Bonferroni correction; it does not reuse another paper's universal model-ID thresholds.
 
@@ -33,7 +35,17 @@ The built-in suite is a public smoke and comparison suite, not a calibrated inte
 
 Run the selected official model using your own official API key, then audit the candidate using its key. Supply the resulting JSON with `--reference-report reports/official.json`. Use `--trust-reference` only after verifying its provenance yourself; trust flags inside imported files are ignored.
 
-Pairing requires identical target, seed, suite version/commitment, API style, task effort, output budget, streaming/repeat/sampling settings, task IDs and prompt hashes. Invalid or legacy reports remain uncalibrated. At least 30 unique tasks are needed; repeats do not inflate independent sample size. A case-cluster bootstrap describes loss, while a conservative one-sided 95% upper bound on the fraction of regressing tasks must fit `--loss-margin` (default 0.10) before a within-margin label is possible. A confidence interval covering zero is insufficient by itself.
+Pairing requires identical seed, suite version/commitment, API style, task effort, output budget, task settings, task IDs and prompt hashes. The single-target result also requires matching target IDs; a reference panel can compare different GPT/Claude targets under the same task configuration. Diagnostic effort-probe lists and fingerprint sample counts do not alter task compatibility; fingerprint sampling settings are checked separately. Invalid, duplicate-ID, self-reference and incompatible reports cannot calibrate results. At least 30 unique prompts are needed; repeats do not inflate sample size.
+
+Bootstrap intervals describe loss. Decisions use a conservative bounded-loss lower bound and an exact binomial upper bound on the fraction of regressing prompts. A reference panel corrects for multiple comparisons. Transport deficits are separated from lower correctness on completed task pairs. See [methodology](docs/methodology.md) for assumptions and thresholds.
+
+Collect official anchors with the same seed/settings, place them in a dedicated folder, then compare an existing candidate **without API calls**:
+
+```text
+python run_relaylens.py --compare-report reports/candidate.json --reference-dir references --trust-reference --out reports/compared.json --html-out reports/compared.html
+```
+
+Multiple matching references are reported as overlapping, never forced into a nearest-model identity. Different protocols remain incompatible: collect references in the actual protocol being audited. Do not place the candidate itself in the reference directory. Only mark all references trusted when you have verified their provenance. Baselines are not bundled or fabricated.
 
 - **D**: no usable response; inspect transport, authentication and API errors.
 - **C**: low basic task performance or a calibrated deficit relative to the reference.
@@ -44,9 +56,13 @@ Every grade leaves model identity **not established**. Names, token usage, laten
 
 ## Reports and routes
 
-Local JSON/HTML retains answer text for inspection while scrubbing secrets. `--public-out reports/public.json` additionally removes answer text, URLs, IPs and local paths. Never publish full local reports accidentally.
+Local JSON/HTML retains answer text for inspection while scrubbing secrets. `--public-out reports/public.json` additionally removes answers, error bodies, expected/parsed answers, gateway aliases, egress location/organization data, URLs, emails, IPs and local paths; case IDs are hashed. Public measurements remain usable for capability comparison, but contain no text for fingerprint comparison. Never publish full local reports accidentally.
 
 Use `--route direct`, `--route env` or `--proxy http://proxy.example:8080`. Optional `--egress` queries ipinfo.io without API credentials; `--no-egress` overrides it. Nothing modifies global proxy configuration. Parameter probes use documented efforts by default; `--efforts` can probe others without treating every rejection as model substitution. `--task-effort omit` omits reasoning parameters. Output budgets and timeout remain configurable.
+
+Chat uses `max_completion_tokens`; `--chat-token-field max_tokens` retains compatibility with older gateways. Official GPT-6 Astra / GPT-6.1 Sol Chat tool limitations are reported without invalidating task comparisons; tool probes still run. Use Responses for their tool tests. The challenge wizard suggests 32,768 output tokens and a 300-second timeout to leave room for reasoning; these are upper bounds, not a spend estimate, and remain editable. CLI defaults stay compatible, so explicitly increase them for challenge runs. A short output budget can measure truncation rather than reasoning.
+
+Research decisions, adoption indicators and limitations: [community review](docs/research-review.md).
 
 ## Development
 

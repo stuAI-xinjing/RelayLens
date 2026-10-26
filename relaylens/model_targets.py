@@ -23,7 +23,7 @@ TARGET_CHOICES = tuple(TARGETS)
 
 
 def profile(target_model):
-    if not target_model:
+    if not isinstance(target_model,str) or not target_model:
         return None
     item = TARGETS.get(target_model)
     if item is None:
@@ -42,3 +42,11 @@ def known_efforts(target_model, api):
     if target_model == "gpt-6-luna":
         return ("none", "low", "medium", "high", "xhigh", "max")
     return None
+
+
+def tool_expected(target_model, api):
+    """Documented exception; probes still run and keep their results.
+
+    https://developers.openai.com/api/docs/guides/reasoning (2026-10-26)
+    """
+    return not (api == 'chat' and target_model in ('gpt-6-astra','gpt-6.1-sol'))

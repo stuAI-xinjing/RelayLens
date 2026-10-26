@@ -9,14 +9,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from relaylens.audit import main
-from relaylens.tasks import suite
+from relaylens.challenges import suite
 from relaylens.transport import extract
 
 
 class HttpAuditTests(unittest.TestCase):
     def test_three_wire_protocols_tool_roundtrip_and_reports(self):
         expected = {}
-        for task in suite(789,1):
+        for task in suite(789,1,64):
             answer = (task.expected if task.family == 'instruction' else
                       json.dumps({'expression':task.metadata['canonical']}) if task.family == 'code_repair' else json.dumps(task.expected))
             expected[task.prompt] = answer
@@ -112,10 +112,11 @@ class HttpAuditTests(unittest.TestCase):
                         self.assertEqual(main(['--base-url',f'http://127.0.0.1:{server.server_port}/v1','--model','gateway-alias',
                               '--target-model','gpt-6-astra' if api != 'messages' else 'claude-opus-5-5',
                               '--api',api,'--api-key','test-secret-key','--seed','789','--task-rounds','1','--efforts','high',
+                              '--pack','challenge','--context-records','64',
                               '--repeats','2','--stream','--route','direct','--out',str(output),'--public-out',str(public),'--html-out',str(html)]),0)
                         report = json.loads(output.read_text(encoding='utf-8'))
                         self.assertTrue(report['tool_summary']['result_used'])
-                        self.assertEqual(len(report['task_summary']),8)
+                        self.assertEqual(len(report['task_summary']),14)
                         self.assertTrue(all(x['accuracy'] == 1 for x in report['task_summary'].values()))
                         self.assertEqual(report['verdict']['grade'],'B')
                         self.assertNotIn('test-secret-key',output.read_text(encoding='utf-8'))

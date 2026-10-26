@@ -3,12 +3,13 @@
 ```text
 CLI
  ├─ Client        protocol, route, timeout, redirect and SSE handling
- ├─ Task suite    seeded generation + local ground truth + graders
+ ├─ Task suite    standard 8 families / challenge 14 families / private module
  ├─ Audit runner  catalog → parameters → tasks → tool continuation
- ├─ Statistics    Wilson intervals + paired case-cluster bootstrap
- └─ Reports       private JSON + optional scrubbed JSON
+ ├─ Statistics    prompt clusters, bounded losses, exact regression upper bound
+ ├─ Comparison    single reference or multi-model panel; offline mode available
+ └─ Reports       local JSON + responsive HTML + public measurements
 ```
 
-The layers are intentionally independent. A protocol failure does not become a task score of zero; it remains a transport error. A task grader never sees an API key. The public report has no raw prompt text, and its hashes can still prove that two reports used the same generated cases.
+The layers are independent. Failed/truncated requests count against end-to-end task accuracy, while their transport causes and completed-only accuracy remain separate. Protocol availability is not automatically labelled weaker reasoning. A task grader never sees an API key. A prompt hash supports consistency checks; it is not a signature or trusted execution attestation.
 
-The standard library is enough for the reference implementation. A future web UI can call the same runner without changing the protocol or grader contracts.
+The standard library remains sufficient. A separate web backend was not added: it would not improve measurement accuracy. Frontend/backend engineering semantics are covered by exact-solver tasks; the HTML report provides local viewing without a server. Generated model code is not executed.

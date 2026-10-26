@@ -10,11 +10,10 @@ from typing import Callable
 
 def _sha256(path: Path) -> str | None:
     try:
-        digest = hashlib.sha256()
-        with path.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(chunk)
-        return digest.hexdigest()
+        # Git commonly checks out CRLF on Windows and LF on Linux. Python
+        # normalizes newlines too; identical source must pair across hosts.
+        source = path.read_bytes().replace(b'\r\n',b'\n').replace(b'\r',b'\n')
+        return hashlib.sha256(source).hexdigest()
     except OSError:
         return None
 
@@ -29,7 +28,7 @@ def _load_module(path: Path) -> ModuleType:
     return module
 
 
-def load_suite(path: str | None = None) -> tuple[Callable, str, str, str | None]:
+def load_suite(path: str | None = None, *, pack='standard', context_records=1024) -> tuple[Callable, str, str, str | None]:
     """Return ``suite(seed, rounds)``, version, source kind and commitment hash.
 
     A private suite is ordinary local Python loaded only by the audit process. It
@@ -39,7 +38,13 @@ def load_suite(path: str | None = None) -> tuple[Callable, str, str, str | None]
     if not path:
         from .tasks import SUITE_VERSION, suite
         source = Path(__file__).with_name("tasks.py")
-        return suite, SUITE_VERSION, "builtin", _sha256(source)
+        files = [source, source.with_name('grading.py')]
+        if pack == 'challenge':
+            from .challenges import SUITE_VERSION, suite as challenge_suite
+            suite = lambda seed, rounds: challenge_suite(seed, rounds, context_records)
+            files.append(source.with_name('challenges.py'))
+        commitment = hashlib.sha256(''.join(_sha256(p) for p in files).encode()).hexdigest()
+        return suite, SUITE_VERSION, "builtin", commitment
 
     suite_path = Path(path).expanduser().resolve()
     if not suite_path.is_file():

@@ -13,8 +13,9 @@ import math
 import operator
 import random
 from dataclasses import dataclass
+from .grading import exact, strict_json
 
-SUITE_VERSION = "synthetic-3"
+SUITE_VERSION = "synthetic-4"
 
 
 def digest(value) -> str:
@@ -40,13 +41,23 @@ class Task:
             return {"passed": text == self.expected, "format_passed": text == self.expected,
                     "reason": "exact text match", "expected": self.expected}
         try:
-            parsed = json.loads(text)
+            parsed = strict_json(text)
         except (ValueError, TypeError):
-            return {"passed": False, "format_passed": False, "reason": "JSON only required"}
+            # Diagnose correct data wrapped in Markdown without accepting a
+            # format-contract violation as a pass.
+            content_passed = False
+            if text.startswith('```') and text.endswith('```') and '\n' in text:
+                inner = text.split('\n', 1)[1].rsplit('```', 1)[0].strip()
+                try:
+                    parsed = strict_json(inner)
+                    content_passed = grade_expression(parsed, self.metadata)['passed'] if self.family == 'code_repair' else exact(parsed, self.expected)
+                except (ValueError, TypeError):
+                    pass
+            return {"passed": False, "content_passed": content_passed, "format_passed": False, "reason": "JSON only required"}
         if self.family == "code_repair":
             return grade_expression(parsed, self.metadata)
-        passed = parsed == self.expected
-        return {"passed": passed, "format_passed": True,
+        passed = exact(parsed, self.expected)
+        return {"passed": passed, "content_passed": passed, "format_passed": True,
                 "reason": "exact structured answer", "expected": self.expected, "parsed": parsed}
 
 
@@ -160,8 +171,12 @@ def evaluate_expression(expression: str, variables: dict):
                 left = right
             return True
         if isinstance(node, ast.BoolOp) and isinstance(node.op, (ast.And, ast.Or)):
-            values = [bool(visit(v)) for v in node.values]
-            return all(values) if isinstance(node.op, ast.And) else any(values)
+            # Python's and/or return an operand and short-circuit evaluation.
+            for child in node.values:
+                value = visit(child)
+                if isinstance(node.op, ast.And) and not value: return value
+                if isinstance(node.op, ast.Or) and value: return value
+            return value
         if isinstance(node, ast.IfExp): return visit(node.body if visit(node.test) else node.orelse)
         raise ValueError("return a pure arithmetic/boolean expression; calls and attributes are not part of this task")
     return visit(tree)
@@ -206,7 +221,7 @@ def grade_expression(parsed, meta):
             typed = type(actual) is bool if type(expected) is bool else type(actual) in (int, float)
             if meta["require_integer"]: typed = type(actual) is int
             if typed and math.isclose(actual, expected, rel_tol=1e-9, abs_tol=1e-9): matched += 1
-    except (SyntaxError, ValueError, TypeError, ZeroDivisionError, OverflowError):
+    except (SyntaxError, ValueError, TypeError, ZeroDivisionError, OverflowError, RecursionError):
         return {"passed": False, "format_passed": True, "reason": "invalid expression or evaluation failed"}
     return {"passed": matched == len(meta["cases"]), "format_passed": True,
             "reason": "unseen numerical and boundary cases", "cases_passed": matched,

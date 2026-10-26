@@ -39,16 +39,17 @@ def classify(status, error=""):
 
 
 class Client:
-    def __init__(self, base, key, api="responses", route="env", proxy="", timeout=60, max_tokens=4096, effort=""):
+    def __init__(self, base, key, api="responses", route="env", proxy="", timeout=60, max_tokens=4096, effort="", chat_token_field='max_completion_tokens'):
         self.base = normalize_base(base)
         self.key, self.api = key, api
         proxies = {"http": proxy,"https": proxy} if proxy else ({} if route == "direct" else None)
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxies), NoRedirect())
         self.timeout, self.max_tokens, self.effort = timeout, max_tokens, effort
+        self.chat_token_field = chat_token_field
 
     def request(self, path, payload=None):
         url = self.base + path
-        headers = {"Content-Type":"application/json", "User-Agent":"RelayLens/0.4"}
+        headers = {"Content-Type":"application/json", "User-Agent":"RelayLens/0.5"}
         if self.api == "messages":
             headers.update({"x-api-key":self.key,"anthropic-version":"2023-06-01"})
         else:
@@ -141,6 +142,8 @@ class Client:
                 event_data.append(line[5:].lstrip())
         consume(event_data)
         if not done: raise ValueError("SSE ended before a completion marker")
+        if self.api == 'chat' and finish_reason is None:
+            raise ValueError('Chat stream ended without finish_reason')
         if self.api in ("responses", "messages"):
             if not isinstance(final, dict): raise ValueError("Missing final Responses object")
             if self.api == 'messages':
@@ -172,7 +175,7 @@ class Client:
             path = '/messages'
         else:
             payload = {"model":model,"messages":context if context is not None else [{"role":"user","content":prompt}],
-                       "max_tokens":self.max_tokens}
+                       self.chat_token_field:self.max_tokens}
             if effort and effort != 'omit': payload["reasoning_effort"]=effort
             if tools: payload["tools"]=[{"type":"function","function":{k:v for k,v in t.items() if k != "type"}} for t in tools]
             path = "/chat/completions"
@@ -184,6 +187,16 @@ class Client:
 
 
 def extract(result, api):
+    try:
+        return _extract(result,api)
+    except (TypeError,ValueError,KeyError,AttributeError,IndexError) as exc:
+        row = {k:result.get(k) for k in ('http_status','latency_ms','first_token_ms','payload_hash')}
+        row.update(transport_state='malformed_response',completed=False,incomplete=False,text='',
+                   error='Response shape invalid: ' + type(exc).__name__)
+        return row, [], None
+
+
+def _extract(result, api):
     data = result.get("data")
     if not isinstance(data, dict): data = {}
     usage = data.get("usage")
@@ -194,7 +207,7 @@ def extract(result, api):
                        for part in item.get("content",[]) if isinstance(part,dict) and part.get("type") == "output_text")
         if not text and isinstance(data.get("output_text"),str): text = data["output_text"]
         calls = [item for item in output if isinstance(item,dict) and item.get("type") == "function_call"]
-        incomplete = data.get("status") in ("incomplete","failed","cancelled")
+        incomplete = data.get("status") != 'completed'
         context_item = output
     elif api == 'messages':
         content = data.get('content') or []
@@ -202,7 +215,7 @@ def extract(result, api):
         calls = [{'name':x.get('name'),'arguments':json.dumps(x.get('input',{})), 'call_id':x.get('id')}
                  for x in content if isinstance(x,dict) and x.get('type') == 'tool_use']
         context_item = {'role':'assistant','content':content}
-        incomplete = data.get('stop_reason') in ('max_tokens','refusal','pause_turn')
+        incomplete = data.get('stop_reason') not in ('end_turn','tool_use','stop_sequence')
     else:
         choices = data.get("choices") or []
         choice = choices[0] if choices else {}
@@ -211,7 +224,12 @@ def extract(result, api):
         calls = [{"name":x.get("function",{}).get("name"),"arguments":x.get("function",{}).get("arguments"),
                   "call_id":x.get("id")} for x in message.get("tool_calls",[])]
         context_item = message
-        incomplete = choice.get("finish_reason") in ("length","content_filter")
+        incomplete = choice.get("finish_reason") not in ('stop','tool_calls','function_call')
+    if not isinstance(text,str):
+        raise ValueError('text must be a string')
+    if data.get('model') is not None and not isinstance(data['model'],str):
+        raise ValueError('model must be a string')
+    incomplete = incomplete and result.get('transport_state') == 'ok'
     rt = None
     if isinstance(usage,dict):
         for details in (usage.get("output_tokens_details"),usage.get("completion_tokens_details"),usage):
