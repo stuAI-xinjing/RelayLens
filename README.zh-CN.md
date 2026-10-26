@@ -1,66 +1,66 @@
 # RelayLens（中转透镜）
 
-RelayLens 是一个不依赖第三方运行库的黑盒审计工具，用来比较 OpenAI 兼容网关的**协议兼容性、工具调用和临时任务表现**。它不能证明网关私下使用了哪一个模型权重。
+独立运行的 GPT / Claude 中转站检测器。用随机任务、工具调用、同题多次测试、回答分布和延迟，检查中转站是否存在能力下降或不稳定路由。仅使用 Python 标准库，Python 3.10+ 即可，无需安装依赖。
 
-## 最简单的运行方式
+## 双击使用
 
-需要 Python 3.10 或更高版本：
+Windows 双击 `start.cmd`，按向导填写地址、目标型号、请求模型 ID、API 类型和隐藏输入的 Key。结束后自动打开 HTML 报告，JSON 保存在 `reports/`。
 
-```powershell
-python -m venv .venv
-.venv\Scripts\activate
-python -m pip install -e .
-relaylens --base-url https://gateway.example/v1 --model example-model
-```
+目标列表按 2026-10-26 官方文档核对：GPT-6 Astra、GPT-6.1 Sol、GPT-6 Luna，以及 Claude Fable 5.1、Opus 5.5、Sonnet 5.5、Haiku 5.5。已有旧型号继续保留；也可填写以 `gpt-` 或 `claude-` 开头的目标 ID。实际中转别名放在 `--model`，所选原始型号放在 `--target-model`。
 
-如果要核验中转站声称的 GPT 或 Claude 型号，请显式选择目标型号：
+## 命令行使用
+
+无需 pip 安装，直接运行；省略 Key 后会隐藏询问，也支持环境变量 `RELAYLENS_API_KEY`、`RELAY_API_KEY` 和 `T8_API_KEY`。
 
 ```powershell
-relaylens --base-url https://gateway.example/v1 --model gpt-6-astra --target-model gpt-6-astra
+python run_relaylens.py --interactive
+python run_relaylens.py --list-targets
+python run_relaylens.py --base-url https://gateway.example/v1 --model gateway-alias --target-model gpt-6-astra --task-rounds 5 --repeats 3 --stream --max-output-tokens 4096 --out reports/relay.json --html-out reports/relay.html
 ```
 
-支持 GPT-6 Astra、GPT-6.1 Sol、GPT-6 Luna、GPT-5.6 Sol，以及 Claude
-Opus 5、Sonnet 5、Opus 4.8、Opus 4.6、Sonnet 4.6、Haiku 4.5。报告会把
-`model_requested`（实际发给网关的型号）与 `target_model`（网关声称的型号）分开保存。
+API 类型：`--api responses`（默认）、`--api chat`（Chat Completions）、`--api messages`（Claude 原生接口，使用 x-api-key 认证）。Claude 中转如果只支持 OpenAI 格式，请选择相应的 chat 或 responses，而非根据名称推断协议。
 
-程序会隐藏读取 API Key。也可以先设置：
+`--task-effort high` 控制实际任务档位，`omit` 可省略该字段。`--efforts high max` 单独配置参数探针；默认选择文档支持档位。参数拒绝会留证，不能单凭一个不支持的参数判冒充。旧入口 `--logic-rounds` 和 `--quick` 仍兼容。
+
+## 检测内容
+
+- 8 类随机任务：唯一解排序逻辑、多步算术、代码修复及边界检查、严格指令、最短路径与路径计数、组合优化、长上下文查找、事务状态追踪。答案在本地求解，不发给被测模型。
+- `--repeats 3`：同一套题重复并打乱顺序，记录同题通过/失败切换，帮助观察混用或不稳定；波动也可能由随机采样、缓存、限额引起。
+- 工具闭环：随机工具名、真实类型调用、校验参数，再回传结果并检查回答使用所有结果字段。
+- 延迟：按任务类别分别统计总耗时、P95、MAD、首个文本 token 时间，不把网络排队当成模型身份证据。
+- 回答方式：记录每类回答长度、JSON/Markdown 比例；可选 `--fingerprint-samples 20` 对 5 种短回答探针各采样 20 次，与参考做 JSD 和置换检验。该选项额外增加 100 次请求；小样本只报告证据不足。
+
+内置任务是可复现的基础套件，不是经过标定的“智商表”。**没有可信目标参考时，不能因得分高就断言达到某个旗舰型号。** 高分也可能说明题目对两个模型都太容易。可通过 `--suite-module private_suite.py` 加载自己保留的更难题库；接口仍为 `suite(seed, rounds)`。
+
+## 官方和中转对照
+
+先用你自己的官方 API Key，在可信官方端点跑同一配置。例如 GPT：
 
 ```powershell
-$env:RELAYLENS_API_KEY = "你的临时测试 Key"
+python run_relaylens.py --base-url https://api.openai.com/v1 --model gpt-6-astra --target-model gpt-6-astra --seed 20261026 --task-rounds 5 --repeats 3 --stream --max-output-tokens 4096 --out reports/official.json
 ```
 
-建议使用测试专用或限额 Key，不要把 Key 写在命令行、截图、Issue 或报告中。
+再用中转站自己的 Key 跑候选，增加参考路径。只有你已核实官方报告来源时，添加 `--trust-reference`：
 
-## 运行参数
+```powershell
+python run_relaylens.py --base-url https://gateway.example/v1 --model gateway-alias --target-model gpt-6-astra --seed 20261026 --task-rounds 5 --repeats 3 --stream --max-output-tokens 4096 --reference-report reports/official.json --trust-reference --out reports/candidate.json --html-out reports/candidate.html
+```
 
-- `--api responses`：Responses API
-- `--api chat`：Chat Completions API
-- `--route direct`：绕过系统代理
-- `--proxy http://proxy.example:8080`：指定 HTTP 代理
-- `--seed 20261005`：固定随机题，便于官方和中转 A/B 对照
-- `--task-rounds 10`：增加每类随机题数量；请求次数和费用也会增加
-- `--public-out report-public.json`：输出去除密钥、完整 URL、本机路径、IP 和原始 Prompt 的公开报告
-- `--reference-report official.json`：与相同套件、种子和 API 风格的参考报告做配对比较
-- `--suite-module C:/private/private_suite.py`：加载本地私有题库模块，模块需提供 `suite(seed, rounds)`
+Claude 官方可用 `https://api.anthropic.com/v1`、`--api messages` 和相应的 `claude-*` 目标。两边应采用相同协议与配置；不同协议的报告会标为不可直接配对。使用同一 seed、题库承诺哈希、目标、档位、输出预算、流式设置、重复数与采样设置，逐题核对 prompt hash。跨版本旧报告不能强行用于新版本认证。
 
-## 结果如何理解
+## 结论
 
-- **D**：接口不可用、未认证或目标模型没有列出。
-- **C**：至少一个独立能力层明显不一致，例如工具闭环失败、参数大量拒绝或临时题表现异常。
-- **B**：接口和任务表现正常，但没有足够的可信参考端点。
-- **A**：在同一套随机题和配对比较中与参考端点接近。A 只表示行为相似，不证明后端权重相同。
+- **D**：没有可用回答，先排查认证、接口、超时和服务状态。
+- **C**：基础题表现偏低，或相对可信参考存在超过容差的能力损失；不能仅由此锁定替代模型是谁。
+- **B**：已获得基础结果，但目标校准、样本量或证据不足。
+- **A**：在至少 30 道不同题、可信参考与配对条件下，任务退步比例的一侧 95% 上界不超过容差。默认容差为 10 个百分点，可用 `--loss-margin` 配置。
 
-## 防止中转站针对题目适配
+失败、网络错误和截断计入任务总数；重复同一题不会伪装成更多独立题。报告保留配对差距的聚类 bootstrap 区间；“区间包含 0”不会自动给 A。A 只说明本套题与参考接近，任何等级都无法证明内部权重身份、排除按题路由或保证未来不变。
 
-不要把“加密题目”当成主要防护。中转站必须收到解密后的明文才能回答，所以它仍可能看到、记录和识别题目。加密只能保护本地文件存储，不能让接收请求的端点看不见内容。
+## 文件和隐私
 
-更可靠的做法是：
+完整本地 JSON/HTML 保留回答供复核；Key 和认证信息会脱敏。分享用 `--public-out reports/public.json`，该文件移除回答文本、完整 URL、路径和 IP；内存中的工具上下文不受脱敏影响。
 
-1. 把公开题库当作可复现的基础套件。
-2. 把高价值题库放在本地私有文件或私有仓库。
-3. 通过 `--suite-module` 临时加载私有题库。
-4. 常规检测使用随机种子；只有官方与中转 A/B 对照时才固定种子。
-5. 使用每次变化的工具名、题目顺序和数值。
-6. 只公开脱敏报告和题库承诺哈希，不公开原始题目。
+`--route direct` 绕过环境代理；`--proxy http://proxy.example:8080` 指定 HTTP 代理。可选 `--egress` 查询 ipinfo.io 出口，`--no-egress` 关闭；查询不携带模型 Key。此功能不更改全局网络配置。
 
-题库承诺哈希可以证明两次 A/B 测试用了同一个本地文件，但不能隐藏发送给中转站的明文题目。详细方法见 [`docs/methodology.md`](docs/methodology.md)、[`docs/threat-model.md`](docs/threat-model.md) 和 [`docs/anti-adaptation.md`](docs/anti-adaptation.md)。
+方法、统计边界和资料见 [methodology.md](docs/methodology.md)、[threat-model.md](docs/threat-model.md)、[anti-adaptation.md](docs/anti-adaptation.md)。

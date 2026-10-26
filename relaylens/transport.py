@@ -17,7 +17,7 @@ def normalize_base(raw):
     if parts.username or parts.password or parts.query or parts.fragment:
         raise ValueError("Keep credentials and query strings out of the base URL")
     path = parts.path.rstrip("/")
-    for suffix in ("/chat/completions", "/responses", "/models", "/docs", "/help"):
+    for suffix in ("/chat/completions", "/responses", "/messages", "/models", "/docs", "/help"):
         if path.endswith(suffix): path = path[:-len(suffix)]; break
     # Preserve custom versioned API paths; only root URLs get /v1.
     return urllib.parse.urlunsplit((parts.scheme, parts.netloc, path or "/v1", "", ""))
@@ -48,7 +48,11 @@ class Client:
 
     def request(self, path, payload=None):
         url = self.base + path
-        headers = {"Authorization": "Bearer " + self.key, "Content-Type":"application/json", "User-Agent":"RelayLens/0.2"}
+        headers = {"Content-Type":"application/json", "User-Agent":"RelayLens/0.4"}
+        if self.api == "messages":
+            headers.update({"x-api-key":self.key,"anthropic-version":"2023-06-01"})
+        else:
+            headers["Authorization"] = "Bearer " + self.key
         body = None if payload is None else json.dumps(payload,ensure_ascii=False).encode()
         req = urllib.request.Request(url,data=body,headers=headers,method="GET" if body is None else "POST")
         start = time.perf_counter()
@@ -78,16 +82,42 @@ class Client:
                     "latency_ms":round((time.perf_counter()-start)*1000,1),"data":{}}
 
     def read_stream(self, resp, start):
-        final = None; chunks = []; event_types = []; first = None; done = False; model = None; usage = None
+        final = None; chunks = []; event_types = []; first = None; done = False; model = None; usage = None; finish_reason = None
         event_data = []
         def consume(lines):
-            nonlocal final,first,done,model,usage
+            nonlocal final,first,done,model,usage,finish_reason
             if not lines: return
             raw = "\n".join(lines)
             if raw == "[DONE]": done = True; return
             obj = json.loads(raw)
             typ = obj.get("type", "chat.chunk")
             event_types.append(typ)
+            if self.api == "messages":
+                if typ == 'message_start':
+                    final = obj.get('message', {})
+                    final['content'] = []
+                elif typ == 'content_block_start':
+                    final['content'].append(obj['content_block'])
+                elif typ == 'content_block_delta':
+                    block = final['content'][obj['index']]
+                    delta = obj.get('delta', {})
+                    if delta.get('type') == 'text_delta':
+                        if first is None: first = round((time.perf_counter()-start)*1000,1)
+                        block['text'] = block.get('text','') + delta.get('text','')
+                    elif delta.get('type') == 'input_json_delta':
+                        block['_json'] = block.get('_json','') + delta.get('partial_json','')
+                    elif delta.get('type') == 'thinking_delta':
+                        block['thinking'] = block.get('thinking','') + delta.get('thinking','')
+                    elif delta.get('type') == 'signature_delta':
+                        block['signature'] = block.get('signature','') + delta.get('signature','')
+                elif typ == 'message_delta':
+                    final.update(obj.get('delta',{}))
+                    final.setdefault('usage',{}).update(obj.get('usage',{}))
+                elif typ == 'message_stop':
+                    done = True
+                elif typ == 'error':
+                    raise ValueError('stream error: ' + str(obj.get('error')))
+                return
             if typ in ("response.failed","error"):
                 raise ValueError("stream error: " + str(obj.get("error") or (obj.get("response") or {}).get("error")))
             if typ in ("response.completed","response.incomplete"):
@@ -98,6 +128,7 @@ class Client:
             if self.api == "chat":
                 model = obj.get("model", model); usage = obj.get("usage") or usage
                 for choice in obj.get("choices", []):
+                    finish_reason = choice.get('finish_reason') or finish_reason
                     delta = choice.get("delta",{}).get("content")
                     if delta:
                         if first is None: first = round((time.perf_counter()-start)*1000,1)
@@ -110,26 +141,43 @@ class Client:
                 event_data.append(line[5:].lstrip())
         consume(event_data)
         if not done: raise ValueError("SSE ended before a completion marker")
-        if self.api == "responses":
+        if self.api in ("responses", "messages"):
             if not isinstance(final, dict): raise ValueError("Missing final Responses object")
+            if self.api == 'messages':
+                for block in final.get('content',[]):
+                    if '_json' in block: block['input'] = json.loads(block.pop('_json'))
             return final,event_types,first
-        return {"model":model,"usage":usage,"choices":[{"message":{"content":"".join(chunks)}}]},event_types,first
+        return {"model":model,"usage":usage,"choices":[{"message":{"content":"".join(chunks)},'finish_reason':finish_reason}]},event_types,first
 
-    def call(self, model, prompt=None, *, context=None, tools=None, effort=None, stream=False):
+    def call(self, model, prompt=None, *, context=None, tools=None, effort=None, stream=False, temperature=None):
         effort = self.effort if effort is None else effort
         if self.api == "responses":
             payload = {"model":model,"input":context if context is not None else prompt,
                        "store":False,"max_output_tokens":self.max_tokens}
-            if effort: payload["reasoning"]={"effort":effort}
+            if effort and effort != 'omit': payload["reasoning"]={"effort":effort}
             if tools: payload["tools"]=tools
             path = "/responses"
+        elif self.api == 'messages':
+            payload = {'model':model, 'messages':context if context is not None else [{'role':'user','content':prompt}],
+                       'max_tokens':self.max_tokens}
+            if effort and effort != 'omit':
+                if effort == 'none':
+                    payload['thinking'] = {'type':'disabled'}
+                else:
+                    payload['thinking'] = {'type':'adaptive'}
+                    payload['output_config'] = {'effort':effort}
+            if tools:
+                payload['tools'] = [{'name':t['name'],'description':t.get('description',''),
+                                     'input_schema':t['parameters']} for t in tools]
+            path = '/messages'
         else:
             payload = {"model":model,"messages":context if context is not None else [{"role":"user","content":prompt}],
                        "max_tokens":self.max_tokens}
-            if effort: payload["reasoning_effort"]=effort
+            if effort and effort != 'omit': payload["reasoning_effort"]=effort
             if tools: payload["tools"]=[{"type":"function","function":{k:v for k,v in t.items() if k != "type"}} for t in tools]
             path = "/chat/completions"
         if stream: payload["stream"]=True
+        if temperature is not None: payload['temperature'] = temperature
         result = self.request(path, payload)
         result["payload_hash"] = __import__("hashlib").sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()
         return result
@@ -148,6 +196,13 @@ def extract(result, api):
         calls = [item for item in output if isinstance(item,dict) and item.get("type") == "function_call"]
         incomplete = data.get("status") in ("incomplete","failed","cancelled")
         context_item = output
+    elif api == 'messages':
+        content = data.get('content') or []
+        text = ''.join(x.get('text','') for x in content if isinstance(x,dict) and x.get('type') == 'text')
+        calls = [{'name':x.get('name'),'arguments':json.dumps(x.get('input',{})), 'call_id':x.get('id')}
+                 for x in content if isinstance(x,dict) and x.get('type') == 'tool_use']
+        context_item = {'role':'assistant','content':content}
+        incomplete = data.get('stop_reason') in ('max_tokens','refusal','pause_turn')
     else:
         choices = data.get("choices") or []
         choice = choices[0] if choices else {}

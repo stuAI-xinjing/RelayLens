@@ -21,8 +21,9 @@ def summary(rows):
         completed=[x for x in items if x.get("completed")]
         passed=sum(bool(x["grade"].get("passed")) for x in completed)
         out[family]={"planned":len(items),"completed":len(completed),"passed":passed,
-                     "accuracy":passed/len(completed) if completed else None,
-                     "wilson_95":wilson(passed,len(completed)),
+                     "accuracy":passed/len(items) if items else None,
+                     "completed_accuracy":passed/len(completed) if completed else None,
+                     "wilson_95":wilson(passed,len(items)),
                      "format_passed":sum(bool(x["grade"].get("format_passed")) for x in completed)}
     return out
 

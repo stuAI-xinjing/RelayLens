@@ -1,98 +1,58 @@
 # RelayLens
 
-Chinese quick start: [README.zh-CN.md](README.zh-CN.md)
+A standalone, standard-library Python audit tool for GPT and Claude gateway claims. It combines fresh deterministic tasks, tool round trips, repeated trials, categorical response fingerprints and latency diagnostics. Python 3.10+; no runtime dependencies.
 
-RelayLens is a dependency-free, black-box audit harness for OpenAI-compatible gateways. It measures observable behavior and compatibility; it cannot prove a gateway's private upstream identity.
-
-## What it tests
-
-- `/models` catalog presence without treating the returned model name as proof.
-- Responses API or Chat Completions API transport behavior.
-- A declared reasoning-effort matrix, including explicit unsupported responses.
-- Fresh seeded synthetic tasks: unique constraint logic, generated arithmetic, strict-format instruction following, and code-repair expressions tested by a local AST interpreter against unseen boundary cases. The built-in suite is reproducible and public; higher-value holdout suites can be loaded locally.
-- A real multi-step function call: request a tool, return its result, and require the model to use the result.
-- HTTP status, transport classification, latency, time to first streamed token, returned model, usage and reasoning-token fields when supplied.
-- JSON reports with prompt hashes and task summaries, plus an optional scrubbed report for sharing.
-
-## Install
-
-Python 3.10+ is enough; there are no runtime dependencies.
-
-```text
-python -m venv .venv
-.venv\Scripts\activate
-python -m pip install -e .
-```
+[中文完整使用说明](README.zh-CN.md)
 
 ## Run
 
-```text
-relaylens --base-url https://gateway.example/v1 --model example-model --api-key %RELAYLENS_API_KEY% --out report.json --public-out report-public.json
-```
-
-When auditing a claimed GPT or Claude model, select the target explicitly. The
-target records the provider claim; it does not turn a model name into proof:
+On Windows, double-click `start.cmd`. Or run directly without installing:
 
 ```text
-relaylens --base-url https://gateway.example/v1 --model gpt-6-astra --target-model gpt-6-astra --api-key %RELAYLENS_API_KEY%
+python run_relaylens.py --interactive
+python run_relaylens.py --list-targets
+python run_relaylens.py --base-url https://gateway.example/v1 --model gateway-alias --target-model gpt-6-astra --seed 20261026 --task-rounds 5 --repeats 3 --stream --max-output-tokens 4096 --out reports/candidate.json --html-out reports/candidate.html
 ```
 
-Supported targets are GPT-6 Astra, GPT-6.1 Sol, GPT-6 Luna, GPT-5.6 Sol,
-Claude Opus 5, Claude Sonnet 5, Claude Opus 4.8, Claude Opus 4.6, Claude
-Sonnet 4.6 and Claude Haiku 4.5. The report keeps `model_requested` (what was
-sent to the gateway) separate from `target_model` (what the gateway claims).
+Keys are requested with hidden input or read from `RELAYLENS_API_KEY` / `RELAY_API_KEY` / `T8_API_KEY`. Existing `pip install -e .` and the `relaylens` console command remain supported.
 
-Use `--api responses` for Responses-compatible gateways or `--api chat` for Chat Completions gateways. `--route direct` bypasses environment proxies; `--proxy http://proxy.example:8080` selects an explicit HTTP proxy. Prefer `RELAYLENS_API_KEY` or interactive secret input; do not put keys in shell history or reports.
+API styles: `responses` (default), `chat` (Chat Completions), `messages` (native Claude; x-api-key authentication). Select the actual wire protocol offered by your endpoint. `--model` is the gateway ID; `--target-model` is the GPT/Claude claim. Current and legacy presets remain available, and GPT/Claude custom target IDs are supported. The catalog was checked on 2026-10-26; it does not imply account availability.
 
-For a reproducible comparison, run candidate and reference with the same `--seed`, `--task-rounds`, API style, model prompt suite, and route policy. Compare task IDs, `prompt_hash`, `suite_version` and `suite_commitment`, not free-form prose. A result is not upgraded to an identity claim merely because scores are close.
+## Evidence
 
-For a private holdout suite, pass `--suite-module C:/private/path/private_suite.py`. The file must define `suite(seed, rounds)` and may define `SUITE_VERSION`. Keep it outside the public repository.
+- Eight generated families: ordering logic, arithmetic, restricted-expression repair, strict instructions, shortest paths, scheduling optimization, long-context retrieval and state tracking.
+- Exact local solvers and unseen boundary cases; generated answers are not sent in prompts. Generated code is never executed.
+- Repeated, shuffled trials expose pass/fail changes on the same tasks. Different returned labels and stochastic variation are weak routing signals, never proof of mixing.
+- Tool names vary by seed; arguments and use of every tool-result field are checked. All three protocols preserve the original user request and assistant context.
+- Latency median, P95, MAD and first visible text-token timing are grouped by task family, with failed requests excluded from timing but included in task accuracy.
+- Optional `--fingerprint-samples 20` adds 100 requests over five categorical prompts. Reference comparison reports JSD and a permutation test with Bonferroni correction; it does not reuse another paper's universal model-ID thresholds.
 
-## Interpreting results
+The built-in suite is a public smoke and comparison suite, not a calibrated intelligence scale. Strong models can saturate it. `--suite-module private_suite.py` loads operator-owned hard or holdout tasks via the existing `suite(seed, rounds)` interface.
 
-The harness deliberately reports separate dimensions:
+## Reference calibration
 
-1. **Transport/compatibility**: the request reached the endpoint, response schema was usable, and requested features were accepted.
-2. **Task behavior**: exact or executable grading on fresh cases. Wilson intervals describe uncertainty when the number of cases is small.
-3. **Reference similarity**: paired case differences only when prompt hashes and suite versions match.
+Run the selected official model using your own official API key, then audit the candidate using its key. Supply the resulting JSON with `--reference-report reports/official.json`. Use `--trust-reference` only after verifying its provenance yourself; trust flags inside imported files are ignored.
 
-The report labels evidence conservatively: **D** means unusable or missing the requested catalog/response, **C** means an independent protocol or task layer mismatched, **B** means healthy evidence without a trusted reference, and **A** means behavior was close to a trusted reference for this suite only. No label proves a private upstream identity. A gateway can imitate names, reject or silently ignore parameters, route requests to different backends, or change behavior over time. Publish the suite version, seed, API style, route class, timestamps, and raw HTTP evidence needed to reproduce the claim.
+Pairing requires identical target, seed, suite version/commitment, API style, task effort, output budget, streaming/repeat/sampling settings, task IDs and prompt hashes. Invalid or legacy reports remain uncalibrated. At least 30 unique tasks are needed; repeats do not inflate independent sample size. A case-cluster bootstrap describes loss, while a conservative one-sided 95% upper bound on the fraction of regressing tasks must fit `--loss-margin` (default 0.10) before a within-margin label is possible. A confidence interval covering zero is insufficient by itself.
 
-If `--target-model` is supplied, use a trusted official run with the same
-target, seed, API style, reasoning setting and suite commitment as the
-reference. A healthy response from a lower tier is not evidence that it is a
-flagship target.
+- **D**: no usable response; inspect transport, authentication and API errors.
+- **C**: low basic task performance or a calibrated deficit relative to the reference.
+- **B**: observations available, but target calibration or evidence remains insufficient.
+- **A**: within-margin task evidence against an operator-verified reference, for this suite/configuration/time only.
 
-## Design basis
+Every grade leaves model identity **not established**. Names, token usage, latency, style and matching results do not prove private weights or rule out adaptive routing. Randomization cannot hide plaintext prompts from a gateway. See [methodology](docs/methodology.md), [threat model](docs/threat-model.md) and [anti-adaptation](docs/anti-adaptation.md).
 
-- OpenAI's Responses documentation defines reasoning configuration and typed function-call outputs; the tool continuation must preserve the returned items when the caller manually manages context.
-- EleutherAI's evaluation harness separates task definitions, samples, filters and metrics; RelayLens follows the same separation for small provider audits.
-- GSM-Symbolic motivates generated variants because memorized/static questions can overstate reasoning ability.
-- Berkeley Function Calling Leaderboard motivates multi-turn and multi-step tool tests instead of checking only whether a tool name appeared.
-- NIST's confidence-interval guidance motivates reporting uncertainty instead of presenting a small percentage as a precise capability estimate.
+## Reports and routes
 
-## Preventing test-specific adaptation
+Local JSON/HTML retains answer text for inspection while scrubbing secrets. `--public-out reports/public.json` additionally removes answer text, URLs, IPs and local paths. Never publish full local reports accidentally.
 
-Do not treat encryption as a way to hide prompts from the gateway. The endpoint must receive the
-plaintext to answer it, so it can still inspect and record the test. Encryption can protect a local
-file at rest. For a stronger audit, keep a rotating holdout suite private, use fresh seeds, and let
-RelayLens randomize the tool name and task order per run. The report includes a suite commitment hash
-for paired-run integrity, but the hash is not a secret. See [anti-adaptation guidance](docs/anti-adaptation.md).
+Use `--route direct`, `--route env` or `--proxy http://proxy.example:8080`. Optional `--egress` queries ipinfo.io without API credentials; `--no-egress` overrides it. Nothing modifies global proxy configuration. Parameter probes use documented efforts by default; `--efforts` can probe others without treating every rejection as model substitution. `--task-effort omit` omits reasoning parameters. Output budgets and timeout remain configurable.
 
-## Privacy and responsible use
+## Development
 
-The public-report path removes API keys, authorization values, full URLs, local paths, IP addresses and raw prompts. Inspect a report before publishing: the scrubber is defense in depth, not a substitute for human review. Use only keys you control, keep request volume within the provider's terms, and do not use the suite to bypass access controls.
+```text
+python -m unittest discover -s tests -v
+python -m compileall -q relaylens
+```
 
-## Limitations
-
-This is a black-box behavioral audit, not cryptographic attestation. It cannot establish that two endpoints use the same weights, identify an undisclosed router, or guarantee future behavior. Add a trusted provider-side attestation or cryptographic fingerprint only when the provider offers one.
-
-## References
-
-- [OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling)
-- [OpenAI Responses API reference](https://developers.openai.com/api/reference/resources/responses/methods/create)
-- [EleutherAI lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness)
-- [GSM-Symbolic](https://machinelearning.apple.com/research/gsm-symbolic)
-- [Berkeley Function Calling Leaderboard V3](https://gorilla.cs.berkeley.edu/blogs/13_bfcl_v3_multi_turn.html)
-- [NIST confidence intervals](https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm)
-- [Anti-adaptation guidance](docs/anti-adaptation.md)
+Tests include loopback HTTP requests for Responses, Chat and native Claude, SSE parsing, full tool round trips, dilution and sample-size checks, false-reference rejection and privacy exports. They do not constitute a live official-model calibration.

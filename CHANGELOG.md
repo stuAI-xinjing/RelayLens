@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- Added an independent Windows wizard and responsive local HTML reports, with no pip requirement.
+- Added native Claude Messages and SSE support, preserving tool context across all three wire APIs.
+- Expanded the synthetic suite to eight families and added shuffled same-task repetitions, style/latency diagnostics and optional distribution fingerprints.
+- Replaced uncalibrated per-target thresholds with paired reference checks, explicit provenance, sample-size requirements and conservative loss-margin evidence.
+- Count failed/truncated attempts in accuracy and preserve streaming truncation state. Public reports remove answer text as well as credentials and local identifiers.
+- Updated current GPT/Claude presets while retaining legacy IDs and custom aliases. Existing standalone flags remain compatible.
+
 ## 0.3.0
 
 - Added explicit GPT and Claude target profiles for separating an operator's claimed model from observed behavior.
