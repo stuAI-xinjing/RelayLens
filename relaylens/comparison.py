@@ -6,6 +6,7 @@ from pathlib import Path
 from .evidence import compare_reference
 from .grading import strict_json
 from .model_targets import profile
+from .numeric_fingerprint import compare_numeric
 
 
 def read_report(path):
@@ -59,6 +60,22 @@ def apply_comparisons(report, paths=(), directory=None, *, trusted=False, margin
         panel = compare_panel(report,references,trusted=trusted,margin=margin)
         panel['load_errors'] = errors
         report['reference_panel'] = panel
+        # Independent behavior evidence; it never changes the capability score.
+        # One predeclared multivariate test per distinct reference, including
+        # incompatible references in the multiplicity denominator.
+        unique = {}
+        for ref in references:
+            key = hashlib.sha256(json.dumps(ref,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
+            unique[key] = ref
+        numeric = []
+        for key,ref in unique.items():
+            target = ref.get('target_model')
+            if not profile(target): continue
+            row = compare_numeric(report,ref,trusted=trusted,alpha=.05/len(unique))
+            numeric.append(dict(row,target_model=target,reference_sha256=key))
+        report['numeric_reference_panel'] = {'comparisons':numeric,'familywise_alpha':.05,
+            'scope':'numeric behavior comparisons only; not a combined capability/identity test',
+            'load_errors':errors,'identity':'not_established'}
         same = [r for r in panel['comparisons'] if r.get('target_model')==report.get('target_model')]
         if len(same)==1:
             report['reference_comparison'] = same[0]

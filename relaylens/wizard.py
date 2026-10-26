@@ -50,6 +50,7 @@ def configure(args):
     args.repeats = integer('同一组题重复次数',3,1)
     args.task_effort = ask('任务思考档（可填 omit 使用服务器默认）','high')
     args.fingerprint_samples = integer('每种回答分布探针采样数，5种；0=跳过，20起可检验',0)
+    args.numeric_samples = integer('数字序列行为探针请求数；0=跳过，3=预览，30起可与官方参考检验',0)
     seed = ask('随机种子：同题官方/中转对照须填同一个整数')
     while seed and not seed.isdigit():
         seed = ask('请输入非负整数或留空')
@@ -68,6 +69,6 @@ def configure(args):
     args.open_report = True
     args.progress = True
     parameters = 4 if args.api == 'messages' else 5
-    estimate = 1 + parameters + (14 if args.pack=='challenge' else 8)*args.task_rounds*args.repeats + 2*args.repeats + 5*args.fingerprint_samples
+    estimate = 1 + parameters + (14 if args.pack=='challenge' else 8)*args.task_rounds*args.repeats + 2*args.repeats + 5*args.fingerprint_samples + args.numeric_samples
     print(f'\n本轮预计约 {estimate} 次 API 请求，按站点实际计费。结果写入 {args.out}。\n')
     return args

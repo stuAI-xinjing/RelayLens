@@ -7,6 +7,7 @@ CLI
  ├─ Audit runner  catalog → parameters → tasks → tool continuation
  ├─ Statistics    prompt clusters, bounded losses, exact regression upper bound
  ├─ Comparison    single reference or multi-model panel; offline mode available
+ ├─ Numeric probes optional request-level behavior vectors and paired tests
  └─ Reports       local JSON + responsive HTML + public measurements
 ```
 

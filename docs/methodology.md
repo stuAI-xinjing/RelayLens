@@ -49,6 +49,16 @@ Fingerprint comparisons require nonempty observed text and compatible sampling s
 
 Timing is separated by task family and successful response, with median, nearest-rank P95, MAD and visible-text first-token time. Network, caching, queueing, thinking budgets and output length confound it. Style features are prompt-sensitive descriptions and do not influence model identity claims.
 
+## Optional numeric behavior probes (0.5.1)
+
+`--numeric-samples N` adds N independent requests, separate from task repetitions. The seed generates bilingual prompts requesting 224–320 integers in [1,355]. Each complete response must be an exact JSON integer array of the requested size. Refusals, prose, truncation, booleans, floats and out-of-range values remain recorded as invalid, never parsed into convenient subsets.
+
+A response has six equally weighted square-root frequency blocks: 355 values, 10 last digits, and 16 bins for each of four position quarters, with 0.5 smoothing. The fixed kernel averages `exp(-squared_distance / scale)` for scales 0.05, 0.2 and 1.0. For paired responses a_i, b_i, H_ij = k(a_i,a_j)+k(b_i,b_j)-k(a_i,b_j)-k(b_i,a_j); the statistic is the mean H_ij over i != j. We swap entire responses within each prompt pair 1,999 times and use `(1 + number >= observed) / 2000`. One test covers all features, with alpha .05 divided by distinct reference reports. This family is separate from capability and categorical tests, not an omnibus identity test.
+
+At least 30 complete pairs and >=95% valid responses on each side are required; failure counts remain visible. This threshold is an operational minimum, not a calibrated power guarantee. Validity assumes independent request pairs, exchangeability within an honest pair, and non-selective missingness. Prompt heterogeneity is preserved by paired swaps. Cached, correlated, response-dependent failures or temporally changing responses can violate assumptions. Public exports lack raw answers and cannot recompute this test. Numeric settings do not invalidate existing capability comparisons.
+
+Before relay interpretation, run independent official-versus-official controls with the same frozen settings. Avoid choosing a seed, sample size, reference or threshold after seeing results. Repeated peeking is not corrected. Significant changes can have benign causes; no detected change is not equivalence. No mixing rate is inferred because that requires calibrated reference and substitute distributions and a routing model. This feature borrows numeric-preference motivation from lm-detector, not its classifier or bank, and does not reproduce the separate KBF factual-recall protocol.
+
 ## Thresholds
 
 RelayLens intentionally does not map an isolated score to “this is model X.” Its A/B/C/D labels describe evidence quality and behavioral mismatch, not an identity probability. A project may choose operational thresholds for its own deployment, but a public report should preserve the raw counts, intervals, suite version, seed, API style, timestamps, and errors.

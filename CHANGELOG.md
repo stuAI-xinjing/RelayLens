@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1
+
+- Reviewed lm.ikale.io / lm-detector, KBF, rank-based API auditing and token-count holdout research; documented applicable evidence and prerequisites without borrowing detection-rate claims.
+- Added optional numeric-sequence probes through all three existing protocols. Frozen prompts/features, complete-array validation and request-level paired multivariate permutation tests avoid treating hundreds of dependent integers as independent calls.
+- Added a separate numeric reference panel with per-panel multiplicity correction, strict prompt/configuration checks, invalid-response accounting and offline recomputation. Small samples, incomplete data and public reports without text cannot produce a numeric match claim.
+- Kept capability grades independent of behavior signals. No identity probability, universal tokenizer mapping or estimated mixing percentage is emitted. Existing task comparisons remain compatible when numeric probes are absent.
+- Extended the wizard, Chinese/English instructions and responsive HTML report. No new runtime dependencies, external fingerprint service or separate web backend.
+
 ## 0.5.0
 
 - Added an opt-in 14-family challenge pack; the wizard selects it by default. New coverage includes constrained optimization/counting, exact probability, relational aggregation, versioned context, frontend async state and backend idempotent transactions.

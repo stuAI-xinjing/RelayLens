@@ -21,6 +21,7 @@ from .privacy import private_report
 from .stats import summary
 from .suite_loader import load_suite
 from .transport import Client, extract
+from .numeric_fingerprint import VERSION as NUMERIC_VERSION, prompts as numeric_prompts, describe as describe_numeric
 
 EFFORTS = ('omit', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')
 FINGERPRINTS = (
@@ -78,6 +79,9 @@ def verdict(report):
                              '速度、模型名、reasoning token、自报身份和文风均不能单独证明真伪。']
     if rate is not None and rate >= .95:
         result['reasons'].append('本套题接近满分，可能缺乏区分度；请检查挑战题和多个可信型号参考是否仍同分。')
+    if any(r.get('target_model')==report.get('target_model') and r.get('trusted_by_operator') and
+           r.get('status')=='distribution_shift' for r in report.get('numeric_reference_panel',{}).get('comparisons',[])):
+        result['reasons'].append('数字序列行为与可信目标参考有显著差异；需排查采样、系统提示和路由变化，不能直接认定是假模型。')
     return result
 
 
@@ -92,18 +96,19 @@ def run(args):
     settings = {'task_effort':args.task_effort,'max_output_tokens':args.max_output_tokens,'stream':args.stream,
                 'repeats':args.repeats,'task_rounds':args.task_rounds,'fingerprint_samples':args.fingerprint_samples,
                 'fingerprint_temperature':args.fingerprint_temperature,'efforts':efforts,
+                'numeric_samples':args.numeric_samples,'numeric_version':NUMERIC_VERSION,
                 'pack':args.pack,'context_records':args.context_records if args.pack=='challenge' else None,
                 'chat_token_field':args.chat_token_field if args.api=='chat' else None}
     client = Client(args.base_url,args.api_key,api=args.api,route=args.route,proxy=args.proxy,
                     timeout=args.timeout,max_tokens=args.max_output_tokens,chat_token_field=args.chat_token_field)
-    report = {'schema_version':'0.6','tool_version':__version__,'suite_version':suite_version,'suite_source':suite_source,'suite_commitment':commitment,
+    report = {'schema_version':'0.7','tool_version':__version__,'suite_version':suite_version,'suite_source':suite_source,'suite_commitment':commitment,
               'run_id':str(uuid.uuid4()),'started_at_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'base_url':client.base,
               'api_style':args.api,'model_requested':args.model,'target_model':target_id,'target':profile(target_id),
               'seed':seed,'settings':settings,'network':{'route':args.route,'proxy_configured':bool(args.proxy)},'cases':[]}
     if args.egress and not args.no_egress:
         try:
             # Independent geo lookup receives no API authentication header.
-            req = urllib.request.Request('https://ipinfo.io/json',headers={'User-Agent':'RelayLens/0.5'})
+            req = urllib.request.Request('https://ipinfo.io/json',headers={'User-Agent':'RelayLens/0.5.1'})
             with client.opener.open(req,timeout=args.timeout) as response:
                 report['egress'] = json.loads(response.read().decode('utf-8'))
         except Exception as exc:
@@ -185,6 +190,14 @@ def run(args):
         prompt = FINGERPRINTS[i]
         add(f'fingerprint-{i}','fingerprint',prompt,client.call(args.model,prompt,effort=args.task_effort,
             temperature=args.fingerprint_temperature,stream=args.stream),repeat=j)
+    probes = numeric_prompts(seed,args.numeric_samples)
+    random.Random(seed ^ 31271).shuffle(probes)
+    for probe in probes:
+        add(f'numeric-sequence-{probe["index"]}','numeric_fingerprint',probe['prompt'],
+            client.call(args.model,probe['prompt'],effort=args.task_effort,
+                        temperature=args.fingerprint_temperature,stream=args.stream))
+        report['cases'][-1]['numeric_index'] = probe['index']
+    report['numeric_summary'] = describe_numeric(report)
     report['task_summary'] = summary(report['cases'])
     report['diagnostics'] = diagnostics(report['cases'])
     report['quality_profile'] = quality_profile(report['cases'])
@@ -212,6 +225,7 @@ def main(argv=None):
     p.add_argument('--stream',action='store_true'); p.add_argument('--progress',action='store_true')
     p.add_argument('--fingerprint-samples',type=int,default=0,help='每种短回答探针采样数，5种；20起可做分布检验')
     p.add_argument('--fingerprint-temperature',type=float,help='可选；只在端点支持时设置，参考须相同')
+    p.add_argument('--numeric-samples',type=int,default=0,help='可选数字序列探针请求数；3次预览、30次起与同配置参考做统计检验；额外计费')
     p.add_argument('--timeout',type=float,default=60); p.add_argument('--max-output-tokens',type=int,default=1200)
     p.add_argument('--out',default='relaylens-report.json'); p.add_argument('--public-out'); p.add_argument('--html-out')
     p.add_argument('--open-report',action='store_true'); p.add_argument('--no-egress',action='store_true')
@@ -228,9 +242,14 @@ def main(argv=None):
     if args.compare_report:
         if not 0 < args.loss_margin < 1: p.error('0 < loss-margin < 1 required')
         report = read_report(args.compare_report)
-        checked_rows(report)
+        if any('grade' in r for r in report.get('cases',[]) if isinstance(r,dict)):
+            checked_rows(report)
+        elif not report.get('settings',{}).get('numeric_samples'):
+            p.error('报告没有任务评分或数字探针')
         # Imported previous claims are never trusted or carried forward.
         report.pop('reference_panel',None); report.pop('reference_comparison',None)
+        report.pop('numeric_reference_panel',None)
+        report['numeric_summary'] = describe_numeric(report)
         report['quality_profile'] = quality_profile(report.get('cases',[]))
         apply_comparisons(report,[args.reference_report] if args.reference_report else [],args.reference_dir,
                           trusted=args.trust_reference,margin=args.loss_margin)
@@ -243,7 +262,8 @@ def main(argv=None):
         p.error('--model is required')
     if args.quick:
         args.task_rounds, args.repeats, args.efforts, args.fingerprint_samples = 0, 1, ['high'], 0
-    if args.task_rounds < 0 or args.repeats < 1 or args.fingerprint_samples < 0 or not 0 < args.loss_margin < 1:
+        args.numeric_samples = 0
+    if args.task_rounds < 0 or args.repeats < 1 or args.fingerprint_samples < 0 or args.numeric_samples < 0 or not 0 < args.loss_margin < 1:
         p.error('rounds/samples >= 0, repeats >= 1, 0 < loss-margin < 1 required')
     if args.task_effort not in EFFORTS or args.max_output_tokens < 1 or args.timeout <= 0:
         p.error('请选择支持的 task-effort，且 timeout/max-output-tokens 必须为正数')

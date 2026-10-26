@@ -10,7 +10,7 @@ from relaylens.reporting import clean_local
 
 class WizardTests(unittest.TestCase):
     def test_wizard_selects_target_and_hides_key(self):
-        inputs = ['https://gateway.example/v1','1','','1','2','1','1','3','high','0','123','','','120','4096','y','n','reports/test.json']
+        inputs = ['https://gateway.example/v1','1','','1','2','1','1','3','high','0','0','123','','','120','4096','y','n','reports/test.json']
         args = argparse.Namespace(base_url=None,target_model=None,model=None)
         captured = io.StringIO()
         with patch('builtins.input',side_effect=inputs),patch('relaylens.wizard.getpass.getpass',return_value='dummy-hidden-key'),contextlib.redirect_stdout(captured):

@@ -11,6 +11,7 @@ from pathlib import Path
 from relaylens.audit import main
 from relaylens.challenges import suite
 from relaylens.transport import extract
+from relaylens.numeric_fingerprint import prompts
 
 
 class HttpAuditTests(unittest.TestCase):
@@ -21,6 +22,8 @@ class HttpAuditTests(unittest.TestCase):
                       json.dumps({'expression':task.metadata['canonical']}) if task.family == 'code_repair' else json.dumps(task.expected))
             expected[task.prompt] = answer
         owner = self
+        for probe in prompts(789,3):
+            expected[probe['prompt']] = json.dumps([7]*probe['length'])
         seen = []
 
         class Handler(BaseHTTPRequestHandler):
@@ -113,10 +116,12 @@ class HttpAuditTests(unittest.TestCase):
                               '--target-model','gpt-6-astra' if api != 'messages' else 'claude-opus-5-5',
                               '--api',api,'--api-key','test-secret-key','--seed','789','--task-rounds','1','--efforts','high',
                               '--pack','challenge','--context-records','64',
+                              '--numeric-samples','3',
                               '--repeats','2','--stream','--route','direct','--out',str(output),'--public-out',str(public),'--html-out',str(html)]),0)
                         report = json.loads(output.read_text(encoding='utf-8'))
                         self.assertTrue(report['tool_summary']['result_used'])
                         self.assertEqual(len(report['task_summary']),14)
+                        self.assertEqual(report['numeric_summary']['valid_requests'],3)
                         self.assertTrue(all(x['accuracy'] == 1 for x in report['task_summary'].values()))
                         self.assertEqual(report['verdict']['grade'],'B')
                         self.assertNotIn('test-secret-key',output.read_text(encoding='utf-8'))

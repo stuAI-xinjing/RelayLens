@@ -1,6 +1,6 @@
 # RelayLens
 
-A standalone, standard-library Python audit tool for GPT and Claude gateway claims. Version 0.5 adds a 14-family challenge pack, frontend/backend reasoning tasks, multi-model reference panels and offline comparison. Python 3.10+; no runtime dependencies. It measures observed capability, not private model identity.
+A standalone, standard-library Python audit tool for GPT and Claude gateway claims. Version 0.5.1 adds optional request-level numeric behavior tests to the 14-family challenge pack, frontend/backend reasoning tasks, multi-model reference panels and offline comparison. Python 3.10+; no runtime dependencies. It measures observed capability and behavior, not private model identity.
 
 [中文完整使用说明](README.zh-CN.md)
 
@@ -28,6 +28,11 @@ API styles: `responses` (default), `chat` (Chat Completions), `messages` (native
 - Tool names and receipt nonces vary by seed. Exact typed JSON arguments and tool-result objects are checked, preventing substring coincidences from passing. All three protocols preserve the original user request and assistant context.
 - Latency median, P95, MAD and first visible text-token timing are grouped by task family, with failed requests excluded from timing but included in task accuracy.
 - Optional `--fingerprint-samples 20` adds 100 requests over five categorical prompts. Reference comparison reports JSD and a permutation test with Bonferroni correction; it does not reuse another paper's universal model-ID thresholds.
+- Optional `--numeric-samples 30` adds 30 numeric-sequence requests on **each** endpoint. Use the same seed, sample count and sampling settings in official and candidate runs. At least 30 valid paired requests and 95% valid responses per endpoint are required for a distribution test. Three requests provide a preview only. Allow enough output tokens to avoid truncation.
+
+Numeric preferences are inspired by [lm-detector](https://github.com/Ikaleio/lm-detector), with an independent implementation and operator-collected references. All requests go through the existing configured endpoint/route; no website proxy or third-party bank is used. A whole answer is one observation. A paired, multivariate permutation test can flag distribution changes, including some synthetic mixtures, but provides neither an identity probability nor a traffic-wide substitution fraction. It never changes task scores. Public exports omit answer text and cannot recompute fingerprints.
+
+Collect independent official-versus-official controls before interpreting relay shifts. Freeze sample counts before testing; repeatedly collecting until significance is not a valid test. See [research decisions](docs/research-review.md) and [statistical assumptions](docs/methodology.md). Real GPT/Claude detection power has not been calibrated for this feature.
 
 The built-in suite is a public smoke and comparison suite, not a calibrated intelligence scale. Strong models can saturate it. `--suite-module private_suite.py` loads operator-owned hard or holdout tasks via the existing `suite(seed, rounds)` interface.
 

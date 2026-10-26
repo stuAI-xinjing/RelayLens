@@ -154,7 +154,7 @@ def compare_reference(candidate, reference, *, trusted=False, margin=.10, match_
     def task_settings(report):
         settings = report.get('settings')
         if not isinstance(settings, dict): return None
-        return {k:v for k,v in settings.items() if k not in ('efforts','fingerprint_samples','fingerprint_temperature')}
+        return {k:v for k,v in settings.items() if k not in ('efforts','fingerprint_samples','fingerprint_temperature','numeric_samples','numeric_version')}
     compatible['settings'] = task_settings(candidate) is not None and task_settings(candidate) == task_settings(reference)
     compatible['target_selected'] = bool(candidate.get('target_model') and reference.get('target_model'))
     if match_target: compatible['target_model'] = candidate.get('target_model') == reference.get('target_model')
