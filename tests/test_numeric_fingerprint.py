@@ -91,6 +91,11 @@ class NumericFingerprintTests(unittest.TestCase):
         self.assertEqual(compare_numeric(reference,reference)['status'],'invalid_report')
         candidate['settings']['fingerprint_temperature']=.7
         self.assertEqual(compare_numeric(candidate,reference)['status'],'incompatible_settings')
+        candidate['settings']['fingerprint_temperature']=None
+        candidate['settings']['concurrency']=4
+        self.assertEqual(compare_numeric(candidate,reference)['status'],'incompatible_settings')
+        candidate['settings']['concurrency']=1
+        self.assertEqual(compare_numeric(candidate,reference)['status'],'no_shift_detected')
         public=private_report(reference)
         self.assertEqual(compare_numeric(public,reference)['status'],'answer_text_unavailable')
         self.assertEqual(describe(public)['status'],'answer_text_unavailable')
@@ -129,7 +134,8 @@ class NumericFingerprintTests(unittest.TestCase):
             self.assertTrue(all(r['alpha']==.025 and r['status']=='distribution_shift' for r in rows))
             self.assertEqual(result['verdict']['identity_claim'],'not established')
             self.assertEqual(result['verdict']['task_accuracy'],1)
-            self.assertEqual(result['verdict']['grade'],'A')
+            self.assertEqual(result['verdict']['grade'],'C')
+            self.assertEqual(result['verdict']['capability_status'],'within_reference_margin')
 
     def test_numeric_setting_does_not_break_existing_task_comparison(self):
         from relaylens.evidence import compare_reference

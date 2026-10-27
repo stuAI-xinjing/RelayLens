@@ -33,6 +33,14 @@ while prompt copies are omitted from public reports. This commitment records whi
 plaintext prompts from the gateway receiving them. Per-run tool names and fresh seeds reduce fixed-pattern
 routing, but no client-side randomization proves model identity.
 
+## Fast screening and decision labels (0.6.0)
+
+The default wizard selects eight tasks covering logic, expression repair, optimization, probability, data aggregation, versioned context, frontend state and backend transactions. This is a coverage selection, not an empirically optimized discriminator among frontier models. Four isolated workers collect at most 12 requests by default, with a 180-second budget and up to five seconds reserved for shutdown/reporting. Explicit custom suites, repeats or probes change these counts. High reasoning is retained; the output ceiling is 32,768 tokens. Terminating a worker bounds client waiting, not provider billing or completion.
+
+B requires at least eight graded attempts, all passing, plus parameter and supported tool checks. A requires a trusted within-margin capability result and passing supported tool/parameter checks; D requires a trusted below-reference capability result. Both calibrated decisions still need at least 30 unique prompts. Failed checks produce C. Fewer than eight attempts, less than 90% completion or calibrated service degradation produce U (incomplete), never a counterfeit claim. Numeric shifts against trusted target references can change an overall A/B to C while preserving separate capability scores and status. None of these labels is an identity probability.
+
+All planned tasks remain in the denominator on timeout or interruption. The full mode preserves all original suites, repeats, behavior probes and reference workflows without an overall deadline. Concurrency is a comparison setting; older sequential reports normalize to one worker. Avoid comparing a parallel candidate with a sequential reference. Optional numeric references also require matching concurrency. A fast eight-question result cannot replace an adequately sampled calibrated run.
+
 ## Statistical interpretation
 
 Pass rates are estimates over this suite, not general intelligence scores. Wilson intervals for family counts are descriptive: repeated attempts are correlated, so they must not be interpreted as independent new questions. Paired bootstrap intervals cluster all repetitions of each unique task. At least 30 unique paired tasks are needed for a calibrated comparison.
@@ -63,7 +71,7 @@ Before relay interpretation, run independent official-versus-official controls w
 
 RelayLens intentionally does not map an isolated score to “this is model X.” Its A/B/C/D labels describe evidence quality and behavioral mismatch, not an identity probability. A project may choose operational thresholds for its own deployment, but a public report should preserve the raw counts, intervals, suite version, seed, API style, timestamps, and errors.
 
-There are no hand-invented per-model IQ cutoffs. The 50% basic-suite warning is a smoke-test warning, not an official GPT/Claude benchmark. Current model presets describe claims and API configuration only. The public suite can be too easy for current frontier models, and an adaptive provider can route recognized probes to its strongest backend. Use private harder suites and tests across different times to increase coverage.
+There are no hand-invented per-model IQ cutoffs. Basic-suite pass/fail warnings are operational checks, not official GPT/Claude benchmarks. Current model presets describe claims and API configuration only. The public suite can be too easy for current frontier models, and an adaptive provider can route recognized probes to its strongest backend. Use private harder suites and tests across different times to increase coverage.
 
 ## Research and implementation sources (checked 2026-10-26)
 

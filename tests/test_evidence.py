@@ -41,7 +41,7 @@ class EvidenceTests(unittest.TestCase):
         candidate = report(3)
         candidate['reference_comparison'] = compare_reference(candidate,report(3),trusted=True)
         self.assertEqual(candidate['reference_comparison']['status'],'insufficient_samples')
-        self.assertEqual(verdict(candidate)['grade'],'B')
+        self.assertEqual(verdict(candidate)['grade'],'U')
 
     def test_relabeling_one_prompt_does_not_inflate_sample_size(self):
         candidate,reference = report(),report()

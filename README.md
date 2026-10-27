@@ -1,18 +1,22 @@
 # RelayLens
 
-A standalone, standard-library Python audit tool for GPT and Claude gateway claims. Version 0.5.1 adds optional request-level numeric behavior tests to the 14-family challenge pack, frontend/backend reasoning tasks, multi-model reference panels and offline comparison. Python 3.10+; no runtime dependencies. It measures observed capability and behavior, not private model identity.
+A standalone, standard-library Python audit tool for GPT and Claude gateway claims. Version 0.6.0 defaults the Windows wizard to eight questions, four parallel workers and a 180-second collection budget (at most 12 requests). The 14-family challenge pack, frontend/backend tasks, optional behavior probes, multi-model references and offline comparison remain available in advanced settings. Python 3.10+; no runtime dependencies. It measures observed capability and behavior, not private model identity.
 
 [中文完整使用说明](README.zh-CN.md)
 
 ## Run
 
-On Windows, double-click `start.cmd`. Or run directly without installing:
+On Windows, double-click `start.cmd`: enter the endpoint, choose the target model, enter the hidden key and press Enter. Type `A` at the last step for advanced settings, protocol selection or gateway aliases. GPT defaults to Responses and Claude to native Messages. Or run directly without installing:
 
 ```text
 python run_relaylens.py --interactive
 python run_relaylens.py --list-targets
-python run_relaylens.py --base-url https://gateway.example/v1 --model gateway-alias --target-model gpt-6-astra --seed 20261026 --task-rounds 5 --repeats 3 --stream --max-output-tokens 4096 --out reports/candidate.json --html-out reports/candidate.html
+python run_relaylens.py --base-url https://gateway.example/v1 --model gateway-alias --target-model gpt-6-astra --mode fast --out reports/candidate.json --html-out reports/candidate.html
 ```
+
+The wizard defaults to fast mode. Existing CLI scripts retain full execution unless `--mode fast` is supplied. Fast defaults: `--pack fast --task-rounds 1 --repeats 1 --concurrency 4 --time-budget 180`, high reasoning and a 32,768-token output ceiling. All remain configurable. `--mode full` retains the complete workflow without an overall deadline.
+
+The budget bounds collection, not upstream completion: up to five seconds are reserved for cleanup and reporting. Unfinished tasks remain in the denominator, and partial results are saved. Closing a connection does not guarantee that upstream billing stops. Eight questions are a quick screen, not sufficient evidence for an A/D calibrated decision.
 
 Keys are requested with hidden input or read from `RELAYLENS_API_KEY` / `RELAY_API_KEY` / `T8_API_KEY`. Existing `pip install -e .` and the `relaylens` console command remain supported.
 
@@ -20,8 +24,9 @@ API styles: `responses` (default), `chat` (Chat Completions), `messages` (native
 
 ## Evidence
 
+- `--pack fast` selects eight single-shot tasks: ordering, expression repair, constrained selection, probability, relational aggregation, context updates, frontend state and backend transactions. Selection is based on coverage, not measured model discrimination. Parameter, tool and catalog checks complete the default run.
 - `--pack standard` preserves eight generated families: ordering logic, arithmetic, restricted-expression repair, strict instructions, shortest paths, scheduling optimization, context retrieval and state tracking.
-- `--pack challenge` retains those eight and adds constrained selection/counting, exact conditional probability, relational aggregation, versioned context retrieval, frontend asynchronous state and backend idempotent transactions. The wizard defaults to this pack. These engineering tasks test semantics; they do not build or execute a full generated app.
+- `--pack challenge` retains those eight and adds constrained selection/counting, exact conditional probability, relational aggregation, versioned context retrieval, frontend asynchronous state and backend idempotent transactions. Available in advanced settings. These engineering tasks test semantics; they do not build or execute a full generated app.
 - Challenge context size is configurable with `--context-records 1024`. Character count and actual API usage are recorded separately; record counts are not advertised as token context size.
 - Exact local solvers and unseen boundary cases; generated answers are not sent in prompts. Generated code is never executed.
 - Repeated, shuffled trials expose pass/fail changes on the same tasks. Different returned labels and stochastic variation are weak routing signals, never proof of mixing.
@@ -40,7 +45,7 @@ The built-in suite is a public smoke and comparison suite, not a calibrated inte
 
 Run the selected official model using your own official API key, then audit the candidate using its key. Supply the resulting JSON with `--reference-report reports/official.json`. Use `--trust-reference` only after verifying its provenance yourself; trust flags inside imported files are ignored.
 
-Pairing requires identical seed, suite version/commitment, API style, task effort, output budget, task settings, task IDs and prompt hashes. The single-target result also requires matching target IDs; a reference panel can compare different GPT/Claude targets under the same task configuration. Diagnostic effort-probe lists and fingerprint sample counts do not alter task compatibility; fingerprint sampling settings are checked separately. Invalid, duplicate-ID, self-reference and incompatible reports cannot calibrate results. At least 30 unique prompts are needed; repeats do not inflate sample size.
+Pairing requires identical seed, suite version/commitment, API style, task effort, output budget, concurrency, task settings, task IDs and prompt hashes. The single-target result also requires matching target IDs; a reference panel can compare different GPT/Claude targets under the same task configuration. Diagnostic effort-probe lists and fingerprint sample counts do not alter task compatibility; fingerprint sampling settings are checked separately. Invalid, duplicate-ID, self-reference and incompatible reports cannot calibrate results. At least 30 unique prompts are needed; repeats do not inflate sample size.
 
 Bootstrap intervals describe loss. Decisions use a conservative bounded-loss lower bound and an exact binomial upper bound on the fraction of regressing prompts. A reference panel corrects for multiple comparisons. Transport deficits are separated from lower correctness on completed task pairs. See [methodology](docs/methodology.md) for assumptions and thresholds.
 
@@ -52,10 +57,13 @@ python run_relaylens.py --compare-report reports/candidate.json --reference-dir 
 
 Multiple matching references are reported as overlapping, never forced into a nearest-model identity. Different protocols remain incompatible: collect references in the actual protocol being audited. Do not place the candidate itself in the reference directory. Only mark all references trusted when you have verified their provenance. Baselines are not bundled or fabricated.
 
-- **D**: no usable response; inspect transport, authentication and API errors.
-- **C**: low basic task performance or a calibrated deficit relative to the reference.
-- **B**: observations available, but target calibration or evidence remains insufficient.
-- **A**: within-margin task evidence against an operator-verified reference, for this suite/configuration/time only.
+- **A — matches official reference:** within-margin capability evidence from at least 30 unique tasks and a verified matching reference; supported parameter/tool checks also pass.
+- **B — key checks passed:** at least eight tasks all pass, as do parameter checks and supported tools. Suitable for an initial trial; target identity remains unverified.
+- **C — concerns found:** a task, parameter, tool or trusted numeric behavior check failed. Inspect evidence and retest.
+- **D — clearly below target reference:** a calibrated capability deficit against a verified official reference; do not rely on the claimed tier for this configuration.
+- **Incomplete (U):** too few tasks or incomplete requests. Diagnose the service first; network failure does not mean a fake model.
+
+Numeric behavior shifts can change the overall A/B decision to C without changing capability scores or the separate reference capability result. The report leads with a conclusion, counts and a next action; raw evidence remains expandable.
 
 Every grade leaves model identity **not established**. Names, token usage, latency, style and matching results do not prove private weights or rule out adaptive routing. Randomization cannot hide plaintext prompts from a gateway. See [methodology](docs/methodology.md), [threat model](docs/threat-model.md) and [anti-adaptation](docs/anti-adaptation.md).
 
@@ -63,9 +71,9 @@ Every grade leaves model identity **not established**. Names, token usage, laten
 
 Local JSON/HTML retains answer text for inspection while scrubbing secrets. `--public-out reports/public.json` additionally removes answers, error bodies, expected/parsed answers, gateway aliases, egress location/organization data, URLs, emails, IPs and local paths; case IDs are hashed. Public measurements remain usable for capability comparison, but contain no text for fingerprint comparison. Never publish full local reports accidentally.
 
-Use `--route direct`, `--route env` or `--proxy http://proxy.example:8080`. Optional `--egress` queries ipinfo.io without API credentials; `--no-egress` overrides it. Nothing modifies global proxy configuration. Parameter probes use documented efforts by default; `--efforts` can probe others without treating every rejection as model substitution. `--task-effort omit` omits reasoning parameters. Output budgets and timeout remain configurable.
+Use `--route direct`, `--route env` or `--proxy http://proxy.example:8080`. Optional `--egress` queries ipinfo.io without API credentials; `--no-egress` overrides it. Nothing modifies global proxy configuration. Full-mode parameter probes use documented efforts by default; fast mode checks the task effort only; `--efforts` can probe others without treating every rejection as model substitution. `--task-effort omit` omits reasoning parameters. Output budgets and timeout remain configurable.
 
-Chat uses `max_completion_tokens`; `--chat-token-field max_tokens` retains compatibility with older gateways. Official GPT-6 Astra / GPT-6.1 Sol Chat tool limitations are reported without invalidating task comparisons; tool probes still run. Use Responses for their tool tests. The challenge wizard suggests 32,768 output tokens and a 300-second timeout to leave room for reasoning; these are upper bounds, not a spend estimate, and remain editable. CLI defaults stay compatible, so explicitly increase them for challenge runs. A short output budget can measure truncation rather than reasoning.
+Chat uses `max_completion_tokens`; `--chat-token-field max_tokens` retains compatibility with older gateways. Official GPT-6 Astra / GPT-6.1 Sol Chat tool limitations are reported without invalidating task comparisons; tool probes still run. Use Responses for their tool tests. The advanced full-mode wizard suggests 32,768 output tokens and a 300-second timeout to leave room for reasoning; these are upper bounds, not a spend estimate, and remain editable. Existing full CLI defaults stay compatible, so explicitly increase them for challenge runs. A short output budget can measure truncation rather than reasoning.
 
 Research decisions, adoption indicators and limitations: [community review](docs/research-review.md).
 

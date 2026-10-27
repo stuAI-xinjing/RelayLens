@@ -43,6 +43,10 @@ def load_suite(path: str | None = None, *, pack='standard', context_records=1024
             from .challenges import SUITE_VERSION, suite as challenge_suite
             suite = lambda seed, rounds: challenge_suite(seed, rounds, context_records)
             files.append(source.with_name('challenges.py'))
+        elif pack == 'fast':
+            from .fast_suite import SUITE_VERSION, suite as fast_suite
+            suite = lambda seed, rounds: fast_suite(seed, rounds, context_records)
+            files += [source.with_name('challenges.py'),source.with_name('fast_suite.py')]
         commitment = hashlib.sha256(''.join(_sha256(p) for p in files).encode()).hexdigest()
         return suite, SUITE_VERSION, "builtin", commitment
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0
+
+- Simplified the default Windows flow to endpoint, target model, hidden key and Enter. Protocol aliases, full suites, repeats, fingerprints, routes and references remain in advanced settings.
+- Added a coverage-based eight-question pack and bounded parallel collection: four workers, a 180-second default budget, at most 12 default requests. Partial results survive the deadline or Ctrl+C; unfinished tasks stay in accuracy denominators. High reasoning is retained.
+- Stop reading SSE after its protocol completion marker rather than waiting indefinitely for the connection to close. Isolated workers also bound stalled reads and DNS resolution.
+- Added actionable A/B/C/D labels and a separate incomplete state. D requires a trusted calibrated capability deficit; service failure is never D. Eight-question success yields B, not a fabricated identity probability.
+- Put the conclusion, pass counts, elapsed time and next action first in HTML; collapse detailed statistics and hide unused numeric probes. Trusted numeric shifts flag an overall concern without altering capability scores.
+- Preserve full CLI defaults and old sequential reference compatibility; compare concurrency explicitly for new task and numeric references. Keep private task graders in the parent process.
+- Test all three protocols in full and fast modes, deadline cancellation with a live heartbeat stream, private suites, completion markers, grades, privacy and advanced controls. No live GPT/Claude model-identification accuracy is claimed.
+
 ## 0.5.1
 
 - Reviewed lm.ikale.io / lm-detector, KBF, rank-based API auditing and token-count holdout research; documented applicable evidence and prerequisites without borrowing detection-rate claims.

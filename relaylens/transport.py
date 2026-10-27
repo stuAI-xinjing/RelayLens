@@ -49,7 +49,7 @@ class Client:
 
     def request(self, path, payload=None):
         url = self.base + path
-        headers = {"Content-Type":"application/json", "User-Agent":"RelayLens/0.5.1"}
+        headers = {"Content-Type":"application/json", "User-Agent":"RelayLens/0.6.0"}
         if self.api == "messages":
             headers.update({"x-api-key":self.key,"anthropic-version":"2023-06-01"})
         else:
@@ -138,6 +138,7 @@ class Client:
             line = raw_line.decode("utf-8").rstrip("\r\n")
             if not line:
                 consume(event_data); event_data=[]
+                if done: break
             elif line.startswith("data:"):
                 event_data.append(line[5:].lstrip())
         consume(event_data)

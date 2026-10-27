@@ -33,7 +33,7 @@ class TaskTests(unittest.TestCase):
         report = {"model_requested":"x", "models":{"transport_state":"ok","ids":["x"]},
                   "cases":[{"family":"parameter","completed":True},{"family":"logic","completed":True,"grade":{"passed":True}}],
                   "tool_summary":{"call_detected":True,"followup_completed":True,"result_used":True}}
-        self.assertEqual(verdict(report)["grade"], "B")
+        self.assertEqual(verdict(report)["grade"], "U")
 
     def test_targets_are_limited_to_gpt_and_claude(self):
         self.assertTrue(TARGETS)

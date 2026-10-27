@@ -148,7 +148,7 @@ def compare_numeric(candidate,reference,*,trusted=False,alpha=.05):
     if candidate.get('run_id') and candidate['run_id']==reference.get('run_id'):
         return dict(result,status='invalid_report',error='candidate cannot be its own reference')
     keys = ('numeric_samples','numeric_version','task_effort','max_output_tokens','stream','fingerprint_temperature','chat_token_field')
-    if (any(a.get(k)!=b.get(k) for k in keys) or candidate.get('seed')!=reference.get('seed') or
+    if (any(a.get(k)!=b.get(k) for k in keys) or a.get('concurrency',1)!=b.get('concurrency',1) or candidate.get('seed')!=reference.get('seed') or
             candidate.get('api_style')!=reference.get('api_style')):
         return dict(result,status='incompatible_settings')
     required = ('task_effort','max_output_tokens','stream','fingerprint_temperature')
