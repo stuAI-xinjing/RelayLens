@@ -83,7 +83,7 @@ class FastTests(unittest.TestCase):
         for row in candidate['cases']: row['completed']=False
         self.assertEqual(verdict(candidate)['grade'],'U')
         candidate=report(); candidate['cases'][0]['grade']['passed']=False
-        self.assertEqual(verdict(candidate)['grade'],'C')
+        self.assertEqual(verdict(candidate)['grade'],'B')
         for row in candidate['cases'][:25]: row['grade']['passed']=False
         candidate['reference_comparison']=compare_reference(candidate,report(),trusted=True)
         self.assertEqual(verdict(candidate)['grade'],'D')

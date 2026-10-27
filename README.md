@@ -1,6 +1,6 @@
 # RelayLens
 
-A standalone, standard-library Python audit tool for GPT and Claude gateway claims. Version 0.6.0 defaults the Windows wizard to eight questions, four parallel workers and a 180-second collection budget (at most 12 requests). The 14-family challenge pack, frontend/backend tasks, optional behavior probes, multi-model references and offline comparison remain available in advanced settings. Python 3.10+; no runtime dependencies. It measures observed capability and behavior, not private model identity.
+A standalone, standard-library Python audit tool for GPT and Claude gateway claims. Version 0.7.0 makes capability the main rating: the default eight-question screen can earn A without an official reference. A different or stronger backend is not penalized for differing names, style or numeric behavior. Interface usability and identity signals remain visible separately. Four parallel workers, a 180-second collection budget, full suites and advanced evidence workflows are retained. Python 3.10+; no runtime dependencies. It measures observed capability and behavior, not private model identity.
 
 [中文完整使用说明](README.zh-CN.md)
 
@@ -16,7 +16,7 @@ python run_relaylens.py --base-url https://gateway.example/v1 --model gateway-al
 
 The wizard defaults to fast mode. Existing CLI scripts retain full execution unless `--mode fast` is supplied. Fast defaults: `--pack fast --task-rounds 1 --repeats 1 --concurrency 4 --time-budget 180`, high reasoning and a 32,768-token output ceiling. All remain configurable. `--mode full` retains the complete workflow without an overall deadline.
 
-The budget bounds collection, not upstream completion: up to five seconds are reserved for cleanup and reporting. Unfinished tasks remain in the denominator, and partial results are saved. Closing a connection does not guarantee that upstream billing stops. Eight questions are a quick screen, not sufficient evidence for an A/D calibrated decision.
+The budget bounds collection, not upstream completion: up to five seconds are reserved for cleanup and reporting. Unfinished tasks remain in the denominator, and partial results are saved. Closing a connection does not guarantee that upstream billing stops. Eight questions can earn a screening A/D; formal target comparison still requires adequate matched reference samples. The report visibly distinguishes these evidence bases.
 
 Keys are requested with hidden input or read from `RELAYLENS_API_KEY` / `RELAY_API_KEY` / `T8_API_KEY`. Existing `pip install -e .` and the `relaylens` console command remain supported.
 
@@ -57,13 +57,17 @@ python run_relaylens.py --compare-report reports/candidate.json --reference-dir 
 
 Multiple matching references are reported as overlapping, never forced into a nearest-model identity. Different protocols remain incompatible: collect references in the actual protocol being audited. Do not place the candidate itself in the reference directory. Only mark all references trusted when you have verified their provenance. Baselines are not bundled or fabricated.
 
-- **A — matches official reference:** within-margin capability evidence from at least 30 unique tasks and a verified matching reference; supported parameter/tool checks also pass.
-- **B — key checks passed:** at least eight tasks all pass, as do parameter checks and supported tools. Suitable for an initial trial; target identity remains unverified.
-- **C — concerns found:** a task, parameter, tool or trusted numeric behavior check failed. Inspect evidence and retest.
-- **D — clearly below target reference:** a calibrated capability deficit against a verified official reference; do not rely on the claimed tier for this configuration.
-- **Incomplete (U):** too few tasks or incomplete requests. Diagnose the service first; network failure does not mean a fake model.
+- **A — capability screen passed:** strong performance worth trying on your real tasks. Default eight-question runs can earn A with 8/8 correct; no reference is required.
+- **B — broadly usable with gaps:** default 6–7/8 correct, or insufficient advanced coverage for A.
+- **C — capability concerns:** default 4–5/8 correct; review failures before paying for the claimed tier.
+- **D — clearly insufficient capability:** default fewer than 4/8 correct, or a calibrated deficit against a trusted target reference.
+- **Incomplete (U):** fewer than eight unique prompts, less than 90% completion or calibrated service degradation. Network failure does not imply weak reasoning.
 
-Numeric behavior shifts can change the overall A/B decision to C without changing capability scores or the separate reference capability result. The report leads with a conclusion, counts and a next action; raw evidence remains expandable.
+The eight-question boundaries assume complete answers. For larger/custom runs, screening A requires >=90% accuracy, >=75% per family, at least six families and four unique challenge questions. B requires >=75% overall but not A; C covers >=50% and <75%; D covers <50%. These are disclosed operational rules, not empirically calibrated model-IQ cutoffs or identity probabilities. Repeating one prompt cannot supply missing coverage.
+
+A trusted within-margin comparison yields A, and a calibrated below-reference result yields D. Those stronger target-specific findings still require at least 30 unique prompts; that requirement no longer gates a screening A. The evidence basis is displayed next to the conclusion. Better task performance is accepted even when identity/style differs; a higher raw score alone does not prove broad superiority.
+
+Numeric behavior shifts and parameter/tool failures no longer lower the capability grade. Their separate panels explain behavior differences and interface limitations; tool-dependent workflows still need working tools. The tool does not collect prices or invent value-for-money scores. Use capability results, actual workload reliability and your price to decide whether to continue.
 
 Every grade leaves model identity **not established**. Names, token usage, latency, style and matching results do not prove private weights or rule out adaptive routing. Randomization cannot hide plaintext prompts from a gateway. See [methodology](docs/methodology.md), [threat model](docs/threat-model.md) and [anti-adaptation](docs/anti-adaptation.md).
 

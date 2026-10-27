@@ -24,7 +24,7 @@ def integer(text, default, minimum=0):
 def configure(args):
     from .model_targets import profile
     from .transport import normalize_base
-    print('\nRelayLens 中转透镜 · 3 分钟快速检查\n8 道关键题 + 参数/工具检查；完整检测可在高级设置中选择。\n')
+    print('\nRelayLens 中转透镜 · 3 分钟快速检查\n8 道关键题评能力是否值得用；能力相当或更好即可，不强求原厂身份。\n参数/工具独立提示；完整检测可在高级设置中选择。\n')
     while True:
         entered = ask('中转站 API 地址',args.base_url or '')
         try:

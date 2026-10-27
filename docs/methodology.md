@@ -33,13 +33,25 @@ while prompt copies are omitted from public reports. This commitment records whi
 plaintext prompts from the gateway receiving them. Per-run tool names and fresh seeds reduce fixed-pattern
 routing, but no client-side randomization proves model identity.
 
-## Fast screening and decision labels (0.6.0)
+## Capability-first screening and decision labels (0.7.0)
 
-The default wizard selects eight tasks covering logic, expression repair, optimization, probability, data aggregation, versioned context, frontend state and backend transactions. This is a coverage selection, not an empirically optimized discriminator among frontier models. Four isolated workers collect at most 12 requests by default, with a 180-second budget and up to five seconds reserved for shutdown/reporting. Explicit custom suites, repeats or probes change these counts. High reasoning is retained; the output ceiling is 32,768 tokens. Terminating a worker bounds client waiting, not provider billing or completion.
+The default eight questions cover logic, expression repair, optimization, probability, aggregation, versioned context, frontend state and backend transactions. Selection is based on coverage, not measured discrimination among specific frontier models. Four workers collect at most 12 requests by default, with a 180-second budget and up to five seconds reserved for shutdown/reporting. Custom suites or extra probes change these counts. High reasoning and the 32,768-token output ceiling remain. Terminating a worker bounds client waiting, not provider billing or completion.
 
-B requires at least eight graded attempts, all passing, plus parameter and supported tool checks. A requires a trusted within-margin capability result and passing supported tool/parameter checks; D requires a trusted below-reference capability result. Both calibrated decisions still need at least 30 unique prompts. Failed checks produce C. Fewer than eight attempts, less than 90% completion or calibrated service degradation produce U (incomplete), never a counterfeit claim. Numeric shifts against trusted target references can change an overall A/B to C while preserving separate capability scores and status. None of these labels is an identity probability.
+The primary letter now rates observed capability; it does not authenticate identity. A is reachable without a reference. Screening rules are explicit operational criteria:
 
-All planned tasks remain in the denominator on timeout or interruption. The full mode preserves all original suites, repeats, behavior probes and reference workflows without an overall deadline. Concurrency is a comparison setting; older sequential reports normalize to one worker. Avoid comparing a parallel candidate with a sequential reference. Optional numeric references also require matching concurrency. A fast eight-question result cannot replace an adequately sampled calibrated run.
+- A: >=90% strict accuracy, >=75% in every family, at least six families and four unique challenge prompts.
+- B: >=75% overall when A's conditions are not met.
+- C: >=50% and <75% overall.
+- D: <50% overall.
+- U overrides screening for fewer than eight unique prompts or <90% completion. Missing and interrupted tasks remain in the denominator; repeated prompts do not supply independent coverage.
+
+For the default eight-question complete run, these become 8 correct for A, 6–7 for B, 4–5 for C and 0–3 for D. These thresholds are not official per-model IQ boundaries, calibrated probabilities, or a claim that an eight-question A proves equivalence to the selected model. The visible evidence basis says task screen versus trusted official comparison. A is advice to trial the demonstrated capabilities, not a guarantee of future performance or price-value; no actual price data is collected.
+
+Trusted reference findings can override the screen: within-margin gives A, below-reference gives D and service degradation gives U. The existing minimum of 30 unique prompt clusters and all statistical assumptions still apply to those stronger reference conclusions. A different backend with equal or better measured capability is acceptable for this objective. Higher raw accuracy is retained but does not by itself establish general superiority.
+
+Tool/parameter results are separate usability advice. Numeric drift and other identity/behavior signals never reduce a capability grade. They remain available for users who also care about provenance. Task output-format failures still count, since following the requested output contract is itself measured capability.
+
+Full execution preserves all existing suites, repeats, probes and reference workflows without an overall deadline. Concurrency is a comparison setting; older reports normalize to one worker. Optional numeric references require matching concurrency too. Current rating policy is recorded as `capability-first-1`; existing task/reference data remain comparable when their task configuration matches.
 
 ## Statistical interpretation
 
@@ -69,7 +81,7 @@ Before relay interpretation, run independent official-versus-official controls w
 
 ## Thresholds
 
-RelayLens intentionally does not map an isolated score to “this is model X.” Its A/B/C/D labels describe evidence quality and behavioral mismatch, not an identity probability. A project may choose operational thresholds for its own deployment, but a public report should preserve the raw counts, intervals, suite version, seed, API style, timestamps, and errors.
+RelayLens intentionally does not map an isolated score to “this is model X.” Its A/B/C/D labels now describe capability screening or a separate trusted reference finding, not an identity probability. A project may choose operational thresholds for its own deployment, but a public report should preserve the raw counts, intervals, suite version, seed, API style, timestamps, and errors.
 
 There are no hand-invented per-model IQ cutoffs. Basic-suite pass/fail warnings are operational checks, not official GPT/Claude benchmarks. Current model presets describe claims and API configuration only. The public suite can be too easy for current frontier models, and an adaptive provider can route recognized probes to its strongest backend. Use private harder suites and tests across different times to increase coverage.
 

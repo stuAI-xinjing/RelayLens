@@ -49,7 +49,7 @@ class Client:
 
     def request(self, path, payload=None):
         url = self.base + path
-        headers = {"Content-Type":"application/json", "User-Agent":"RelayLens/0.6.0"}
+        headers = {"Content-Type":"application/json", "User-Agent":"RelayLens/0.7.0"}
         if self.api == "messages":
             headers.update({"x-api-key":self.key,"anthropic-version":"2023-06-01"})
         else:

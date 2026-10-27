@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0
+
+- Reoriented primary A/B/C/D ratings to useful task capability. The default eight-question screen can earn A without a reference; no model-specific IQ cutoff or probability is invented.
+- Disclosed screening thresholds and coverage: A needs >=90% overall, >=75% per family, six families and four distinct challenge prompts; B >=75%, C >=50%, D <50%. Default complete runs map to 8 / 6–7 / 4–5 / 0–3 correct. Incomplete service and insufficient unique prompts remain separate.
+- Preserve rigorous optional official comparisons: within-margin A and calibrated-deficit D retain their existing evidence requirements. Show screening versus reference evidence visibly next to the conclusion.
+- Separate interface usability and identity/behavior signals from capability. Stronger task performance is accepted regardless of backend name or numeric drift; tool limitations remain explicit for tool-dependent uses.
+- Keep eight-question/three-minute defaults and all advanced workflows. Record the new `capability-first-1` rating policy and report schema 0.9, with regression checks for accessible A, grade boundaries, repeat inflation, usable reference improvements and visible warnings.
+
 ## 0.6.0
 
 - Simplified the default Windows flow to endpoint, target model, hidden key and Enter. Protocol aliases, full suites, repeats, fingerprints, routes and references remain in advanced settings.

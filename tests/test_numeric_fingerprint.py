@@ -134,7 +134,8 @@ class NumericFingerprintTests(unittest.TestCase):
             self.assertTrue(all(r['alpha']==.025 and r['status']=='distribution_shift' for r in rows))
             self.assertEqual(result['verdict']['identity_claim'],'not established')
             self.assertEqual(result['verdict']['task_accuracy'],1)
-            self.assertEqual(result['verdict']['grade'],'C')
+            self.assertEqual(result['verdict']['grade'],'A')
+            self.assertEqual(result['verdict']['identity_signal']['status'],'behavior_difference')
             self.assertEqual(result['verdict']['capability_status'],'within_reference_margin')
 
     def test_numeric_setting_does_not_break_existing_task_comparison(self):

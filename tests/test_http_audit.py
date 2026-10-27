@@ -136,7 +136,7 @@ def suite(seed,rounds):
                         self.assertEqual(report['run_state']['end_reason'],'completed')
                         self.assertEqual(report['numeric_summary']['valid_requests'],3)
                         self.assertTrue(all(x['accuracy'] == 1 for x in report['task_summary'].values()))
-                        self.assertEqual(report['verdict']['grade'],'B')
+                        self.assertEqual(report['verdict']['grade'],'A')
                         self.assertNotIn('test-secret-key',output.read_text(encoding='utf-8'))
                         sanitized = json.loads(public.read_text(encoding='utf-8'))
                         self.assertTrue(all('text' not in x['observed'] for x in sanitized['cases']))

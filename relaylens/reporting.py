@@ -40,6 +40,11 @@ def write_html(report,path):
     reasons = ''.join(f'<li>{esc(x)}</li>' for x in verdict.get('reasons',[]))
     limitations = ''.join(f'<li>{esc(x)}</li>' for x in verdict.get('limitations',[]))
     grade_guide = ''.join(f'<p><b>{esc(k if k!="U" else "未完成")}</b> · {esc(v)}</p>' for k,v in verdict.get('grade_guide',{}).items())
+    usability = verdict.get('usability',{})
+    usability_notes = ''.join(f'<li>{esc(x)}</li>' for x in usability.get('notes',[]))
+    usability_text = {'checks_passed':'本轮参数与受支持的工具检查通过。','issues_found':'有接口功能需要复核，能力分数单独保留。',
+                      'partially_checked':'部分接口检查未记录，请结合实际用途确认。'}.get(usability.get('status'),'未记录接口检查。')
+    identity = verdict.get('identity_signal',{})
     elapsed=report.get('run_state',{}).get('elapsed_seconds')
     mode_label='限时快速检查' if report.get('run_state',{}).get('mode')=='fast' else '完整检测'
     grade_name=verdict['grade'] if verdict['grade']!='U' else '—'
@@ -78,8 +83,9 @@ def write_html(report,path):
     document = f'''<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>RelayLens 中转透镜</title>
 <style>body{{font:15px/1.6 system-ui,"Microsoft YaHei",sans-serif;background:#f3f6fa;color:#203049;margin:0}}main{{max-width:1200px;margin:auto;padding:28px}}.card{{background:white;padding:24px;border:1px solid #dce3ec;border-radius:14px;margin:16px 0}}h1{{margin-bottom:4px}}h2{{font-size:18px}}.grade{{font-size:28px;color:#2254aa}}.muted{{color:#627087}}table{{width:100%;border-collapse:collapse}}td,th{{text-align:left;padding:10px;border-bottom:1px solid #e4e9f0}}pre{{white-space:pre-wrap;overflow-wrap:anywhere}}.scroll{{overflow:auto}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}}.grid>.card{{margin:0}}meter{{width:100px}}summary{{cursor:pointer;font-weight:600}}.hero{{border-left:6px solid #d29a16}}.status-A,.status-B{{border-left-color:#16815b}}.status-D{{border-left-color:#c93a3a}}.status-U{{border-left-color:#79859a}}.status-A .grade,.status-B .grade{{color:#126b4b}}.status-D .grade{{color:#ac2929}}.action{{background:#f3f6fa;padding:14px;border-radius:9px}}@media(max-width:600px){{main{{padding:10px}}.card{{padding:15px}}}}</style>
 <main><h1>RelayLens · 中转透镜</h1><p class="muted">{esc(mode_label)} · 目标 {esc(report.get('target_model'))}</p>
-<section class="card hero status-{esc(verdict['grade'])}"><div class="grade">{esc(grade_name)} · {esc(verdict['label'])}</div><p>{esc(verdict.get('summary',''))}</p><ul>{reasons}</ul><p class="action"><b>下一步：</b>{esc(verdict.get('action','查看下方依据'))}</p><details><summary>等级是什么意思？</summary>{grade_guide}<ul>{limitations}</ul></details></section>
+<section class="card hero status-{esc(verdict['grade'])}"><div class="grade">{esc(grade_name)} · {esc(verdict['label'])}</div><p>{esc(verdict.get('summary',''))}</p><p class="muted">依据：{esc(verdict.get('basis_label','旧版评级'))} · {esc(verdict.get('target_assessment',''))}</p><ul>{reasons}</ul><p class="action"><b>下一步：</b>{esc(verdict.get('action','查看下方依据'))}</p><details><summary>等级是什么意思？</summary>{grade_guide}<ul>{limitations}</ul></details></section>
 <div class="grid">{metrics}</div>
+<div class="grid"><section class="card"><h2>接口可用性</h2><p>{esc(usability_text)}</p><ul>{usability_notes}</ul></section><section class="card"><h2>身份与行为线索 · 不计入能力等级</h2><p>{esc(identity.get('summary','未记录身份线索。'))}</p></section></div>
 <section class="card"><details {"open" if panel.get('comparisons') else ""}><summary>官方参考对照 · {"已提供" if panel.get('comparisons') else "未提供"}</summary><p>差距为“参考正确率 − 本次正确率”，正数表示本次更低。多个型号都相符时，题库尚不能区分它们。</p><div class="scroll"><table><tr><th>参考型号</th><th>比较结果</th><th>独立题数</th><th>平均差距</th></tr>{panel_rows}</table></div></details></section>
 <section class="card"><h2>任务能力 · 失败和截断计入总数</h2><div class="scroll"><table><tr><th>类别</th><th>通过/计划</th><th>完成</th><th>正确率</th></tr>{family_rows}</table></div></section>
 <section class="card" {"hidden" if numeric.get('status') in (None,'not_requested') else ""}><h2>数字序列行为指纹 · 可选辅助证据</h2><p>{esc(numeric_labels.get(numeric.get('status'), '未启用'))}；有效回答 {esc(numeric.get('valid_requests',0))} / {esc(numeric.get('planned_requests',0))} 次。一次回答是一个样本，数组中的整数不算独立请求。该项不计入能力分数。</p><div class="scroll"><table><tr><th>参考型号</th><th>行为结果</th><th>配对请求</th><th>置换 p 值</th></tr>{numeric_rows}</table></div><p class="muted">p 值不是“真模型概率”。提示词、采样、时间变化也可能造成差异；没有检出差异不能排除混用。</p><details><summary>查看检验依据与无效回答原因</summary><pre>{numeric_evidence}</pre></details></section>

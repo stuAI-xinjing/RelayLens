@@ -92,11 +92,11 @@ def run_tool(client, model, api, effort, stream, seed, add, repeat=0):
 
 
 GRADE_GUIDE = {
-    'A':'符合官方参考：同配置能力差距在预设容差内。',
-    'B':'关键检查通过：本轮表现正常，尚未完成目标型号认证。',
-    'C':'存在疑点：关键题、参数、工具或行为出现异常。',
-    'D':'明显不符合目标参考：能力显著低于已核实的官方对照。',
-    'U':'检测未完成：样本不足、连接失败或超时，不能判定真假。',
+    'A':'本轮能力达标：关键能力表现优秀，值得按实际用途试用。',
+    'B':'基本可用：大部分题目通过，但有短板或高阶覆盖不足。',
+    'C':'能力存疑：多项任务未通过，暂不建议按目标档位付费。',
+    'D':'能力明显不足：本轮多数题未通过，或显著低于可信目标参考。',
+    'U':'检测未完成：有效题数或完成率不足，先处理连接和超时。',
 }
 
 
@@ -106,52 +106,82 @@ def verdict(report):
     quality = quality_profile(cases)
     n = len(graded); completed = sum(bool(r.get('completed')) for r in graded)
     passed = sum(bool(r.get('completed') and r['grade'].get('passed')) for r in graded)
+    accuracy = passed/n if n else 0
+    unique = {r.get('prompt_hash') for r in graded if r.get('prompt_hash')}
+    challenge = {r.get('prompt_hash') for r in graded if r.get('prompt_hash') and r.get('difficulty')=='challenge'}
+    family_scores = {}
+    for row in graded:
+        family_scores.setdefault(row['family'],[]).append(bool(row.get('completed') and row['grade'].get('passed')))
+    coverage_ok = len(family_scores)>=6 and len(challenge)>=4
+    family_floor = min((sum(v)/len(v) for v in family_scores.values()),default=0)
+    comp = report.get('reference_comparison',{})
+    calibrated = comp.get('capability_calibrated',False)
+    result = {'grade':'C','label':'能力存疑','identity_claim':'not established','capability_status':'issues_on_this_suite',
+              'rating_policy':'capability-first-1','evidence_basis':'task_screen',
+              'basis_label':'本轮能力筛查','task_accuracy':passed/n if n else None,
+              'target_assessment':'尚无充分的同配置官方对照；本等级表示本轮能力表现。',
+              'coverage':{'unique_questions':len(unique),'families':len(family_scores),'challenge_questions':len(challenge)},
+              'reasons':[f'关键题通过 {passed}/{n}，完整回答 {completed}/{n}。'], 'grade_guide':GRADE_GUIDE,
+              'action':'先核对失败项并复测；目前不建议按所选型号的档位付费。'}
+    # These are disclosed operational thresholds, not model-specific IQ cutoffs
+    # or probabilities. Same-prompt repeats cannot supply missing coverage.
+    if accuracy>=.9 and coverage_ok and family_floor>=.75:
+        result.update(grade='A',label='本轮能力达标，值得试用',capability_status='strong_on_this_suite',
+                      action='建议先用于你的实际任务；若表现稳定且费用合适，可继续使用。')
+    elif accuracy>=.75:
+        result.update(grade='B',label='基本可用，仍有短板',capability_status='mostly_passed_on_this_suite',
+                      action='可先用于已经通过的任务类型；失败或未覆盖的能力先小规模试用。')
+        if not coverage_ok:
+            result['reasons'].append('高阶覆盖不足：A 级筛查需至少 6 类任务，其中至少 4 道不同高阶题。')
+        elif family_floor<.75:
+            result['reasons'].append('部分任务类别通过率低于 75%，总分较高也保留短板提示。')
+    elif accuracy<.5:
+        result.update(grade='D',label='本轮能力明显不足',capability_status='low_on_this_suite',
+                      action='不建议为当前表现支付所选型号档位的费用；核对题目和配置后再复测。')
+    if n and passed<n:
+        result['reasons'].append(f'{n-passed} 道题未通过；其中 {quality.get("format_only_failures",0)} 道仅为输出格式问题。')
+    if calibrated and comp.get('status')=='below_reference':
+        result.update(grade='D',label='明显低于目标能力参考',capability_status='below_reference',evidence_basis='official_reference',
+                      basis_label='可信官方能力对照',target_assessment='对照显示本轮能力明显低于所选型号的参考。',
+                      action='不建议按所选型号档位付费；保留报告，核对渠道后再复测。')
+        result['reasons'].append('同题、同配置的能力差距超过预设容差。')
+    elif calibrated and comp.get('status')=='within_margin':
+        result.update(grade='A',label='目标能力参考达标，值得使用',capability_status='within_reference_margin',
+                      evidence_basis='official_reference',basis_label='可信官方能力对照',
+                      target_assessment='本套题与所选型号的能力差距在容差内；不要求底层型号相同。',
+                      action='能力对照已通过；结合实际任务、稳定性和费用决定是否继续使用。')
+        result['reasons'].append('已核实的官方参考对照通过；更好的答题表现不会因型号或风格不同被扣分。')
+
+    # Interface usability and identity/behavior evidence remain visible, but
+    # they do not lower a capability grade when task performance is sufficient.
     tool = report.get('tool_summary',{})
     expected_tool = tool_expected(report.get('target_model'),report.get('api_style'))
     tool_ok = all(tool.get(k) for k in ('call_detected','followup_completed','result_used'))
     parameters = [r for r in cases if r.get('family')=='parameter']
     parameter_ok = all(r.get('completed') and r.get('observed',{}).get('exact_instruction_followed') is True for r in parameters)
-    comp = report.get('reference_comparison',{})
-    calibrated = comp.get('capability_calibrated',False)
-    result = {'grade':'C','label':'存在疑点','identity_claim':'not established','capability_status':'uncalibrated',
-              'task_accuracy':passed/n if n else None,'reasons':[], 'grade_guide':GRADE_GUIDE,
-              'action':'先查看失败项并复测；确认前不建议把它当作所选型号长期使用。'}
-    result['reasons'].append(f'关键题通过 {passed}/{n}，完整回答 {completed}/{n}。')
-    if n>=8 and passed==n and (tool_ok or not expected_tool) and parameter_ok:
-        result.update(grade='B',label='关键检查通过',action='本轮表现正常，可先试用；确认具体型号需增加同配置官方对照。')
-    elif n and passed<n:
-        result['reasons'].append(f'{n-passed} 道题未通过；其中 {quality.get("format_only_failures",0)} 道仅为输出格式问题。')
-        result['capability_status']='low_on_this_suite' if passed/n<.5 else 'issues_on_this_suite'
-        result['label']='关键题未全部通过'
-    if calibrated and comp.get('status')=='below_reference':
-        result.update(grade='D',label='明显低于目标参考',capability_status='below_reference',
-                      action='不建议按所选型号使用或付费；保留报告，核对渠道后再复测。')
-        result['reasons'].append('同题、同配置的比较显示能力差距超过预设容差。')
-    elif calibrated and comp.get('status')=='within_margin' and (tool_ok or not expected_tool) and parameter_ok:
-        result.update(grade='A',label='符合官方参考',capability_status='within_reference_margin',
-                      action='本次能力符合所选模型的可信参考，可按本次配置使用。')
-        result['reasons'].append('已核实的官方参考对照通过，能力差距在预设容差内。')
+    usability_notes=[]
     if expected_tool and not tool_ok:
-        result['reasons'].append('工具调用未完成闭环；可能是接口适配或模型行为问题。')
-        if result['grade']=='C': result['label']='工具或能力检查存在疑点'
+        usability_notes.append('工具闭环未通过；依赖工具调用的用途应先修复接口或复测。')
     if not parameter_ok:
-        result['reasons'].append('参数或精确指令探针未通过，请检查 API 格式和思考档。')
+        usability_notes.append('参数或精确指令探针未通过；核对 API 格式和思考档。')
+    result['usability']={'status':'issues_found' if usability_notes else 'checks_passed' if parameters else 'partially_checked',
+                         'notes':usability_notes}
+    if usability_notes:
+        result['action']+=' 如需依赖失败的接口功能，应先处理下方接口提示。'
     drift = any(r.get('target_model')==report.get('target_model') and r.get('trusted_by_operator') and
                  r.get('status')=='distribution_shift' for r in report.get('numeric_reference_panel',{}).get('comparisons',[]))
-    if drift:
-        if result['grade'] in ('A','B'):
-            result.update(grade='C',label='能力通过，但行为存在疑点',action='排查系统提示、采样或路由变化后复测，暂不确认型号。')
-        result['reasons'].append('数字行为与可信目标参考有显著差异。')
-    if n<8 or completed/n<.9 or (calibrated and comp.get('status')=='service_degradation'):
-        reason='样本不足' if n<8 else '请求未完整完成'
-        result.update(grade='U',label='检测未完成 · '+reason,
-                      capability_status='insufficient_samples' if n<8 else 'service_degradation',
-                      action='先检查地址、接口、Key 或超时，再运行快检；当前不能判定模型真假。')
+    result['identity_signal']={'status':'behavior_difference' if drift else 'not_established',
+        'summary':'数字行为与目标参考不同；可能有提示词、采样或路由变化，不代表能力较低。' if drift else '模型来源未认证；能力相当或更好时，不因身份未知而扣分。'}
+    if len(unique)<8 or (n and completed/n<.9) or (calibrated and comp.get('status')=='service_degradation'):
+        reason='不同题目不足 8 道' if len(unique)<8 else '请求未完整完成'
+        result.update(grade='U',label='检测未完成 · '+reason,evidence_basis='incomplete',basis_label='证据未收集完整',
+                      capability_status='insufficient_samples' if len(unique)<8 else 'service_degradation',
+                      action='先检查地址、接口、Key 或超时，再运行快检；本次暂不能评定能力。')
     if report.get('run_state',{}).get('end_reason') in ('budget_exhausted','interrupted'):
         result['reasons'].append('已保存已完成的结果；剩余检查因时间上限或手动中止而停止。')
     result['summary'] = GRADE_GUIDE[result['grade']]
-    result['limitations'] = ['等级表示本次能力和行为证据，不是模型身份概率；A/D 都不等于百分百真/假。',
-                             '结论只适用于本批题目、设置和时段；高分也可能是题目对多个模型都足够容易。']
+    result['limitations'] = ['A 表示能力筛查或参考对照达标，不是原厂身份认证，也不是经标定的真货概率。',
+        '快检只能支持本轮覆盖能力的试用判断；判断具体型号同等水平需要匹配参考。价格未录入，不计算性价比或承诺物有所值。']
     return result
 
 
@@ -173,7 +203,7 @@ def run(args):
                 'chat_token_field':args.chat_token_field if args.api=='chat' else None}
     client = Client(args.base_url,args.api_key,api=args.api,route=args.route,proxy=args.proxy,
                     timeout=args.timeout,max_tokens=args.max_output_tokens,chat_token_field=args.chat_token_field)
-    report = {'schema_version':'0.8','tool_version':__version__,'suite_version':suite_version,'suite_source':suite_source,'suite_commitment':commitment,
+    report = {'schema_version':'0.9','tool_version':__version__,'suite_version':suite_version,'suite_source':suite_source,'suite_commitment':commitment,
               'run_id':str(uuid.uuid4()),'started_at_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'base_url':client.base,
               'api_style':args.api,'model_requested':args.model,'target_model':target_id,'target':profile(target_id),
               'seed':seed,'settings':settings,'network':{'route':args.route,'proxy_configured':bool(args.proxy)},'cases':[]}
@@ -184,7 +214,7 @@ def run(args):
     if args.egress and not args.no_egress:
         try:
             # Independent geo lookup receives no API authentication header.
-            req = urllib.request.Request('https://ipinfo.io/json',headers={'User-Agent':'RelayLens/0.6.0'})
+            req = urllib.request.Request('https://ipinfo.io/json',headers={'User-Agent':'RelayLens/0.7.0'})
             with client.opener.open(req,timeout=args.timeout) as response:
                 report['egress'] = json.loads(response.read().decode('utf-8'))
         except Exception as exc:
@@ -354,7 +384,9 @@ def save_report(report,args):
         result=report['verdict']
         print(f'\n检测结果：{result["label"]}' + (f'（{result["grade"]}）' if result['grade']!='U' else ''))
         print(result.get('summary',''))
+        print('依据：'+result.get('basis_label','旧版评级')+'；'+result.get('target_assessment',''))
         print('下一步：'+result.get('action','查看报告'))
+        for note in result.get('usability',{}).get('notes',[]): print('接口提示：'+note)
         print('报告已保存：'+str(Path(args.out).resolve()))
     else:
         print(json.dumps({'report':str(Path(args.out).resolve()),'target_model':report['target_model'],
