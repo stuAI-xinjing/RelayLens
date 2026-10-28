@@ -332,7 +332,8 @@ def main(argv=None):
         return 0
     if args.compare_report:
         if not 0 < args.loss_margin < 1: p.error('0 < loss-margin < 1 required')
-        if Path(args.compare_report).resolve()==Path(args.out).resolve(): p.error('请使用新的输出路径，保留原始报告')
+        if args.review_content and Path(args.compare_report).resolve()==Path(args.out).resolve():
+            p.error('内容复核请使用新的输出路径，保留原始报告')
         report = read_report(args.compare_report)
         if args.review_content: report = review_report(report)
         if any('grade' in r for r in report.get('cases',[]) if isinstance(r,dict)):
