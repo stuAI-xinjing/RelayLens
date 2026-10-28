@@ -6,6 +6,8 @@ import statistics
 from collections import Counter, defaultdict
 
 from .model_targets import tool_expected
+from .content_review import content_passed
+from .stats import wilson
 
 
 def distribution(values):
@@ -119,6 +121,13 @@ def checked_rows(report):
             raise ValueError('missing family or grade')
         if type(row.get('completed')) is not bool or type(row['grade'].get('passed')) is not bool:
             raise ValueError('completed and grade.passed must be boolean')
+        grade = row['grade']
+        if 'content_policy' in grade:
+            if type(grade.get('content_passed')) is not bool:
+                raise ValueError('content_passed must be boolean')
+            score = grade.get('component_score')
+            if type(score) not in (int,float) or not math.isfinite(score) or not 0 <= score <= 1:
+                raise ValueError('component_score must be a finite fraction')
         obs = row.get('observed', {})
         if not isinstance(obs, dict): raise ValueError('observed must be an object')
         if row['completed'] and (obs.get('completed') is False or obs.get('incomplete') is True or
@@ -199,8 +208,10 @@ def compare_reference(candidate, reference, *, trusted=False, margin=.10, match_
     # Bounded differences lie in [-1,1]. Hoeffding gives a conservative lower
     # bound even when the bootstrap has zero variance (e.g. all tasks failed).
     loss_lower = mean - math.sqrt(2*math.log(1/alpha)/n)
+    loss_upper = mean + math.sqrt(2*math.log(1/alpha)/n)
     completed_loss = [statistics.mean(v) for v in completed_clusters.values()]
     completed_lower = (statistics.mean(completed_loss) - math.sqrt(2*math.log(1/alpha)/len(completed_loss))) if completed_loss else None
+    completed_upper = (statistics.mean(completed_loss) + math.sqrt(2*math.log(1/alpha)/len(completed_loss))) if completed_loss else None
     ref_graded = list(b.values())
     ref_accuracy = sum(bool(r.get('completed') and r['grade'].get('passed')) for r in ref_graded)/len(ref_graded)
     reference_completion = sum(r['completed'] for r in ref_graded)/len(ref_graded)
@@ -210,6 +221,8 @@ def compare_reference(candidate, reference, *, trusted=False, margin=.10, match_
     if n >= 30 and reference_usable:
         if loss_lower > margin:
             status = 'below_reference' if len(completed_loss) >= 30 and completed_lower > margin else 'service_degradation'
+        elif loss_upper < 0 and len(completed_loss) >= 30 and completed_upper < 0:
+            status = 'above_reference'
         elif regression_upper <= margin:
             status = 'within_margin'
         else:
@@ -217,6 +230,8 @@ def compare_reference(candidate, reference, *, trusted=False, margin=.10, match_
     result.update(status=status, unique_tasks=n, paired_attempts=len(a), mean_loss=mean,
                   bootstrap_95=[boot[50], boot[1949]], regression_fraction_upper_bound=regression_upper,
                   loss_lower_bound=loss_lower, completed_only_loss_lower_bound=completed_lower,
+                  loss_upper_bound=loss_upper, completed_only_loss_upper_bound=completed_upper,
+                  scoring_metric='strict_task_pass',
                   confidence=1-alpha, completed_pair_unique_tasks=len(completed_loss),
                   reference_accuracy=ref_accuracy, reference_usable=reference_usable,
                   reference_completion=reference_completion,
@@ -247,11 +262,16 @@ def quality_profile(cases):
     complete = [r for r in graded if r.get('completed')]
     def passed(row): return bool(row.get('completed') and row['grade'].get('passed'))
     repeated = [rs for rs in groups.values() if len(rs)>1]
-    return {'attempts':len(graded),'unique_prompts':len(groups),'completed':len(complete),
+    first = [min(rs,key=lambda row:row.get('repeat',0)) for rs in groups.values()]
+    return {'content_correct':sum(content_passed(r) for r in graded),
+            'content_accuracy':sum(content_passed(r) for r in graded)/len(graded) if graded else None,
+            'content_wilson_95_first_attempt':wilson(sum(content_passed(r) for r in first),len(first)),
+            'interval_note':'Descriptive first-attempt interval only; generated families can be correlated. Not a probability of reaching the selected model.',
+            'attempts':len(graded),'unique_prompts':len(groups),'completed':len(complete),
             'completion_rate':len(complete)/len(graded) if graded else None,
             'strict_accuracy':sum(map(passed,graded))/len(graded) if graded else None,
             'completed_accuracy':sum(map(passed,complete))/len(complete) if complete else None,
-            'format_only_failures':sum(bool(r['grade'].get('content_passed')) and not r['grade'].get('passed') for r in complete),
+            'format_only_failures':sum(content_passed(r) and not r['grade'].get('passed') for r in complete),
             'failures_by_cause':dict(errors),'repeated_unique_prompts':len(repeated),
             'all_repeats_pass_rate':sum(all(map(passed,rs)) for rs in repeated)/len(repeated) if repeated else None,
             'any_repeat_pass_rate':sum(any(map(passed,rs)) for rs in repeated)/len(repeated) if repeated else None,

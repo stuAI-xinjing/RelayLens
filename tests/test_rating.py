@@ -34,7 +34,8 @@ class CapabilityRatingTests(unittest.TestCase):
     def test_disclosed_fast_grade_boundaries(self):
         for passed,expected in ((8,'A'),(7,'B'),(6,'B'),(5,'C'),(4,'C'),(3,'D'),(0,'D')):
             sample=fast_report()
-            for row in sample['cases'][passed:]:row['grade']['passed']=False
+            for row in sample['cases'][passed:]:
+                row['grade']['passed']=False; row['grade']['content_passed']=False
             self.assertEqual(verdict(sample)['grade'],expected,(passed,expected))
 
     def test_network_failure_and_repeats_do_not_become_capability_proofs(self):

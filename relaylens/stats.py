@@ -2,6 +2,7 @@
 import math
 import random
 from collections import defaultdict
+from .content_review import content_passed
 
 
 def wilson(passed, total, z=1.959963984540054):
@@ -22,6 +23,8 @@ def summary(rows):
         passed=sum(bool(x["grade"].get("passed")) for x in completed)
         out[family]={"planned":len(items),"completed":len(completed),"passed":passed,
                      "accuracy":passed/len(items) if items else None,
+                     "content_passed":sum(content_passed(x) for x in items),
+                     "content_accuracy":sum(content_passed(x) for x in items)/len(items) if items else None,
                      "completed_accuracy":passed/len(completed) if completed else None,
                      "wilson_95":wilson(passed,len(items)),
                      "format_passed":sum(bool(x["grade"].get("format_passed")) for x in completed)}

@@ -24,7 +24,7 @@ def integer(text, default, minimum=0):
 def configure(args):
     from .model_targets import profile
     from .transport import normalize_base
-    print('\nRelayLens 中转透镜 · 3 分钟快速检查\n8 道关键题评能力是否值得用；能力相当或更好即可，不强求原厂身份。\n参数/工具独立提示；完整检测可在高级设置中选择。\n')
+    print('\nRelayLens 中转透镜 · 3 分钟快速检查\n16 道关键题检查能力；达到/超越所选型号需要可信同题对照。\n参数/工具独立提示；完整检测可在高级设置中选择。\n')
     while True:
         entered = ask('中转站 API 地址',args.base_url or '')
         try:
@@ -55,7 +55,7 @@ def configure(args):
     args.open_report = True
     args.progress = True
     if args.mode=='fast' and not advanced:
-        print('\n开始快检，默认 8 道关键题、最多约 12 次请求、4 路并行、3 分钟采集预算。\n如使用了命令行参数，以参数为准。按站点实际计费；Ctrl+C 可停止采集并保留结果。\n')
+        print('\n开始快检，默认 16 道关键题、最多约 20 次请求、4 路并行、3 分钟采集预算。\n如使用了命令行参数，以参数为准。按站点实际计费；Ctrl+C 可停止采集并保留结果。\n')
     else:
         print(f'\n开始{ "限时快速" if args.mode=="fast" else "完整" }检测，使用你选择的设置；按实际请求计费。\n')
     return args
@@ -73,10 +73,10 @@ def advanced_settings(args):
     route = ask('线路：1=系统/VPN，2=直连，3=指定 HTTP 代理','1')
     args.route = 'direct' if route=='2' else 'env'
     args.proxy = ask('HTTP 代理地址') if route=='3' else None
-    pack = ask('题库：0=精选8题，1=标准8类，2=完整14类','0' if args.mode=='fast' else '2')
+    pack = ask('题库：0=精选8类，1=标准8类，2=完整14类','0' if args.mode=='fast' else '2')
     args.pack = {'0':'fast','1':'standard','2':'challenge'}.get(pack,'challenge')
     args.context_records = integer('上下文记录数',128 if args.pack=='fast' else 1024,32)
-    args.task_rounds = integer('每类随机题数量',1 if args.mode=='fast' else 5)
+    args.task_rounds = integer('每类随机题数量',2 if args.mode=='fast' else 5)
     args.repeats = integer('同题重复次数',1 if args.mode=='fast' else 3,1)
     args.task_effort = ask('任务思考档（omit 使用服务器默认）','high')
     args.fingerprint_samples = integer('短回答分布探针数/种，5种；0=跳过',0)

@@ -18,6 +18,7 @@ from .comparison import apply_comparisons, read_report
 from .grading import exact, strict_json
 from .model_targets import TARGETS, known_efforts, profile, tool_expected
 from .privacy import private_report
+from .content_review import review_grade, review_report, content_passed
 from .stats import summary
 from .suite_loader import load_suite
 from .transport import Client, extract
@@ -60,6 +61,7 @@ def grade_task(row,task):
         row['grade'] = task.grade(row.get('observed',{}).get('text',''))
         if not isinstance(row['grade'],dict) or type(row['grade'].get('passed')) is not bool:
             raise ValueError('grader must return a boolean passed field')
+        row['grade'] = review_grade(task,row.get('observed',{}).get('text',''),row['grade'])
     except Exception as exc:
         row['grade'] = {'passed':False,'format_passed':False,'reason':'grader_error','error':type(exc).__name__}
 
@@ -92,6 +94,7 @@ def run_tool(client, model, api, effort, stream, seed, add, repeat=0):
 
 
 GRADE_GUIDE = {
+    'S':'可信同题对照显示优于所选模型参考；结论限于本套题与本配置。',
     'A':'本轮能力达标：关键能力表现优秀，值得按实际用途试用。',
     'B':'基本可用：大部分题目通过，但有短板或高阶覆盖不足。',
     'C':'能力存疑：多项任务未通过，暂不建议按目标档位付费。',
@@ -105,23 +108,23 @@ def verdict(report):
     graded = [r for r in cases if 'grade' in r]
     quality = quality_profile(cases)
     n = len(graded); completed = sum(bool(r.get('completed')) for r in graded)
-    passed = sum(bool(r.get('completed') and r['grade'].get('passed')) for r in graded)
+    passed = sum(content_passed(r) for r in graded)
     accuracy = passed/n if n else 0
     unique = {r.get('prompt_hash') for r in graded if r.get('prompt_hash')}
     challenge = {r.get('prompt_hash') for r in graded if r.get('prompt_hash') and r.get('difficulty')=='challenge'}
     family_scores = {}
     for row in graded:
-        family_scores.setdefault(row['family'],[]).append(bool(row.get('completed') and row['grade'].get('passed')))
+        family_scores.setdefault(row['family'],[]).append(content_passed(row))
     coverage_ok = len(family_scores)>=6 and len(challenge)>=4
     family_floor = min((sum(v)/len(v) for v in family_scores.values()),default=0)
     comp = report.get('reference_comparison',{})
     calibrated = comp.get('capability_calibrated',False)
     result = {'grade':'C','label':'能力存疑','identity_claim':'not established','capability_status':'issues_on_this_suite',
-              'rating_policy':'capability-first-1','evidence_basis':'task_screen',
+              'rating_policy':'target-separated-2','evidence_basis':'task_screen',
               'basis_label':'本轮能力筛查','task_accuracy':passed/n if n else None,
               'target_assessment':'尚无充分的同配置官方对照；本等级表示本轮能力表现。',
               'coverage':{'unique_questions':len(unique),'families':len(family_scores),'challenge_questions':len(challenge)},
-              'reasons':[f'关键题通过 {passed}/{n}，完整回答 {completed}/{n}。'], 'grade_guide':GRADE_GUIDE,
+              'reasons':[f'内容完全正确 {passed}/{n}，严格格式通过 {sum(bool(r.get("completed") and r["grade"].get("passed")) for r in graded)}/{n}，完整回答 {completed}/{n}。'], 'grade_guide':GRADE_GUIDE,
               'action':'先核对失败项并复测；目前不建议按所选型号的档位付费。'}
     # These are disclosed operational thresholds, not model-specific IQ cutoffs
     # or probabilities. Same-prompt repeats cannot supply missing coverage.
@@ -139,18 +142,26 @@ def verdict(report):
         result.update(grade='D',label='本轮能力明显不足',capability_status='low_on_this_suite',
                       action='不建议为当前表现支付所选型号档位的费用；核对题目和配置后再复测。')
     if n and passed<n:
-        result['reasons'].append(f'{n-passed} 道题未通过；其中 {quality.get("format_only_failures",0)} 道仅为输出格式问题。')
+        result['reasons'].append(f'{n-passed} 道内容未完全正确；另有 {quality.get("format_only_failures",0)} 道内容正确但格式不符。分项得分不用于提高等级。')
+    result['screen_grade'] = result['grade']
+    result.update(target_grade='U',target_label='目标水平尚未验证')
     if calibrated and comp.get('status')=='below_reference':
-        result.update(grade='D',label='明显低于目标能力参考',capability_status='below_reference',evidence_basis='official_reference',
+        result.update(target_grade='D',target_label='明显低于所选模型参考',grade='D',label='明显低于目标能力参考',capability_status='below_reference',evidence_basis='official_reference',
                       basis_label='可信官方能力对照',target_assessment='对照显示本轮能力明显低于所选型号的参考。',
                       action='不建议按所选型号档位付费；保留报告，核对渠道后再复测。')
         result['reasons'].append('同题、同配置的能力差距超过预设容差。')
     elif calibrated and comp.get('status')=='within_margin':
-        result.update(grade='A',label='目标能力参考达标，值得使用',capability_status='within_reference_margin',
+        result.update(target_grade='A',target_label='很大可能达到所选模型参考水平（预设容差内）',grade='A',label='目标能力参考达标，值得使用',capability_status='within_reference_margin',
                       evidence_basis='official_reference',basis_label='可信官方能力对照',
                       target_assessment='本套题与所选型号的能力差距在容差内；不要求底层型号相同。',
                       action='能力对照已通过；结合实际任务、稳定性和费用决定是否继续使用。')
         result['reasons'].append('已核实的官方参考对照通过；更好的答题表现不会因型号或风格不同被扣分。')
+
+    elif calibrated and comp.get('status')=='above_reference':
+        result.update(grade='S',target_grade='S',target_label='本套题有充分证据优于所选模型参考',
+                      label='优于所选模型参考',capability_status='above_reference',evidence_basis='official_reference',
+                      basis_label='可信官方能力对照',target_assessment='同题同配置的保守差距上界仍小于零；本结论不外推为所有用途都更强。',
+                      action='本套题对照支持更强表现；继续结合实际用途、稳定性和费用判断。')
 
     # Interface usability and identity/behavior evidence remain visible, but
     # they do not lower a capability grade when task performance is sufficient.
@@ -174,11 +185,12 @@ def verdict(report):
         'summary':'数字行为与目标参考不同；可能有提示词、采样或路由变化，不代表能力较低。' if drift else '模型来源未认证；能力相当或更好时，不因身份未知而扣分。'}
     if len(unique)<8 or (n and completed/n<.9) or (calibrated and comp.get('status')=='service_degradation'):
         reason='不同题目不足 8 道' if len(unique)<8 else '请求未完整完成'
-        result.update(grade='U',label='检测未完成 · '+reason,evidence_basis='incomplete',basis_label='证据未收集完整',
+        result.update(grade='U',screen_grade='U',target_grade='U',target_label='证据不足，目标水平尚未验证',label='检测未完成 · '+reason,evidence_basis='incomplete',basis_label='证据未收集完整',
                       capability_status='insufficient_samples' if len(unique)<8 else 'service_degradation',
                       action='先检查地址、接口、Key 或超时，再运行快检；本次暂不能评定能力。')
     if report.get('run_state',{}).get('end_reason') in ('budget_exhausted','interrupted'):
         result['reasons'].append('已保存已完成的结果；剩余检查因时间上限或手动中止而停止。')
+    result['sample_note'] = '16 道快检只减少单题影响，不能单独证明达到任何具体型号；不同种子不能直接比较高低。'
     result['summary'] = GRADE_GUIDE[result['grade']]
     result['limitations'] = ['A 表示能力筛查或参考对照达标，不是原厂身份认证，也不是经标定的真货概率。',
         '快检只能支持本轮覆盖能力的试用判断；判断具体型号同等水平需要匹配参考。价格未录入，不计算性价比或承诺物有所值。']
@@ -214,7 +226,7 @@ def run(args):
     if args.egress and not args.no_egress:
         try:
             # Independent geo lookup receives no API authentication header.
-            req = urllib.request.Request('https://ipinfo.io/json',headers={'User-Agent':'RelayLens/0.7.0'})
+            req = urllib.request.Request('https://ipinfo.io/json',headers={'User-Agent':'RelayLens/0.8.0'})
             with client.opener.open(req,timeout=args.timeout) as response:
                 report['egress'] = json.loads(response.read().decode('utf-8'))
         except Exception as exc:
@@ -288,7 +300,7 @@ def main(argv=None):
     p.add_argument('--api',choices=('responses','chat','messages'),default='responses')
     p.add_argument('--chat-token-field',choices=('max_completion_tokens','max_tokens'),default='max_completion_tokens',help='Chat输出预算字段；旧网关可显式选max_tokens')
     p.add_argument('--route',choices=('env','direct'),default='env'); p.add_argument('--proxy')
-    p.add_argument('--mode',choices=('fast','full'),default='full',help='fast=8题并行限时快检；full=完整自定义检测。双击向导默认fast')
+    p.add_argument('--mode',choices=('fast','full'),default='full',help='fast=16题并行限时快检；full=完整自定义检测。双击向导默认fast')
     p.add_argument('--advanced',action='store_true',help='进入向导高级设置')
     p.add_argument('--time-budget',type=float,default=180,help='快速模式总采集时限，默认180秒；完整模式不受此限制')
     p.add_argument('--concurrency',type=int,default=4,help='快速模式并行请求进程数，默认4')
@@ -297,7 +309,7 @@ def main(argv=None):
     p.add_argument('--repeats',type=int,default=1,help='同一组题重复次数；3 次起可观察同题波动')
     p.add_argument('--task-effort',default='high',choices=EFFORTS)
     p.add_argument('--suite-module',help='本地私有题库模块，提供 suite(seed, rounds)')
-    p.add_argument('--pack',choices=('standard','challenge','fast'),help='fast精选8题；standard标准8类；challenge完整14类')
+    p.add_argument('--pack',choices=('standard','challenge','fast'),help='fast精选8类，每类默认2题；standard标准8类；challenge完整14类')
     p.add_argument('--context-records',type=int,help='上下文记录数，>=32；快检默认128，完整默认1024')
     p.add_argument('--efforts',nargs='+',choices=EFFORTS,help='参数探针；默认采用目标的文档支持档位')
     p.add_argument('--stream',action=argparse.BooleanOptionalAction,default=None); p.add_argument('--progress',action='store_true')
@@ -310,6 +322,7 @@ def main(argv=None):
     p.add_argument('--egress',action='store_true',help='可选查询 ipinfo.io 的本次网络出口信息')
     p.add_argument('--reference-report',help='相同配置的可信官方 JSON 报告')
     p.add_argument('--reference-dir',help='多个 GPT/Claude 官方参考 JSON 所在目录')
+    p.add_argument('--review-content',action='store_true',help='配合--compare-report，离线复核内置题内容；保留严格原评分，不调用API')
     p.add_argument('--compare-report',help='离线重新比较已有报告，不调用API、不需要Key')
     p.add_argument('--trust-reference',action='store_true',help='你已自行核实参考报告来自所选官方模型；程序无法认证导入文件')
     p.add_argument('--loss-margin',type=float,default=.10,help='允许的参考能力损失比例，默认0.10')
@@ -319,7 +332,9 @@ def main(argv=None):
         return 0
     if args.compare_report:
         if not 0 < args.loss_margin < 1: p.error('0 < loss-margin < 1 required')
+        if Path(args.compare_report).resolve()==Path(args.out).resolve(): p.error('请使用新的输出路径，保留原始报告')
         report = read_report(args.compare_report)
+        if args.review_content: report = review_report(report)
         if any('grade' in r for r in report.get('cases',[]) if isinstance(r,dict)):
             checked_rows(report)
         elif not report.get('settings',{}).get('numeric_samples'):
@@ -327,16 +342,18 @@ def main(argv=None):
         # Imported previous claims are never trusted or carried forward.
         report.pop('reference_panel',None); report.pop('reference_comparison',None)
         report.pop('numeric_reference_panel',None)
+        report['task_summary'] = summary(report.get('cases',[]))
         report['numeric_summary'] = describe_numeric(report)
         report['quality_profile'] = quality_profile(report.get('cases',[]))
         apply_comparisons(report,[args.reference_report] if args.reference_report else [],args.reference_dir,
                           trusted=args.trust_reference,margin=args.loss_margin)
         report['verdict'] = verdict(report)
         return save_report(report,args)
+    if args.review_content: p.error('--review-content requires --compare-report')
     if args.interactive or not args.base_url:
         from .wizard import configure
         args = configure(args)
-    defaults={'pack':'fast' if args.mode=='fast' else 'standard','task_rounds':1 if args.mode=='fast' else 3,
+    defaults={'pack':'fast' if args.mode=='fast' else 'standard','task_rounds':2 if args.mode=='fast' else 3,
               'context_records':128 if args.mode=='fast' else 1024,'timeout':180 if args.mode=='fast' else 60,
               'max_output_tokens':32768 if args.mode=='fast' else 1200,'stream':args.mode=='fast'}
     for key,value in defaults.items():
@@ -382,7 +399,8 @@ def save_report(report,args):
             webbrowser.open(Path(html_path).resolve().as_uri())
     if args.progress or args.interactive:
         result=report['verdict']
-        print(f'\n检测结果：{result["label"]}' + (f'（{result["grade"]}）' if result['grade']!='U' else ''))
+        print('\n目标能力：'+result.get('target_label','尚未验证'))
+        print(f'本轮结果：{result["label"]}' + (f'（{result["grade"]}）' if result['grade']!='U' else ''))
         print(result.get('summary',''))
         print('依据：'+result.get('basis_label','旧版评级')+'；'+result.get('target_assessment',''))
         print('下一步：'+result.get('action','查看报告'))

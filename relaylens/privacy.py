@@ -51,7 +51,7 @@ def private_report(report: dict, secrets: tuple[str, ...] = ()) -> dict:
         row['observed'] = {k:v for k,v in observed.items() if k in ('http_status','transport_state','latency_ms',
                             'first_token_ms','payload_hash','completed','incomplete','reasoning_tokens')}
         if 'grade' in row:
-            row['grade'] = {k:v for k,v in row['grade'].items() if k in ('passed','content_passed','format_passed','cases_passed','cases_total')}
+            row['grade'] = {k:v for k,v in row['grade'].items() if k in ('passed','content_passed','format_passed','cases_passed','cases_total','content_policy','component_score')}
     if 'diagnostics' in result:
         result['diagnostics'].pop('returned_models',None)
         stability = result['diagnostics'].get('stability',{})

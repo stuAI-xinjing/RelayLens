@@ -35,7 +35,7 @@ def compare_panel(candidate, references, *, trusted=False, margin=.10):
         rows.append(dict(result,target_model=target,reference_sha256=commitment,
                          reference_date=reference.get('started_at_utc')))
     models = {r.get('target_model') for r in rows}
-    matches = sorted(model for model in models if model and all(r.get('capability_calibrated') and r['status']=='within_margin' for r in rows if r.get('target_model')==model))
+    matches = sorted(model for model in models if model and all(r.get('capability_calibrated') and r['status'] in ('within_margin','above_reference') for r in rows if r.get('target_model')==model))
     below = sorted({r['target_model'] for r in rows if r.get('capability_calibrated') and r['status']=='below_reference'})
     status = 'overlapping_references' if len(matches)>1 else 'compatible_reference_found' if matches else 'below_some_references' if below else 'insufficient_evidence'
     return {'status':status,'within_margin_models':matches,'below_reference_models':below,'comparisons':rows,
@@ -83,6 +83,10 @@ def apply_comparisons(report, paths=(), directory=None, *, trusted=False, margin
             # Conflicting runs for one target must not be silently cherry-picked.
             usable = [r for r in same if r.get('capability_calibrated')]
             statuses = {r['status'] for r in usable}
+            if len(usable)==len(same) and statuses <= {'within_margin','above_reference'}:
+                # Preserve the weakest supported conclusion across target runs.
+                report['reference_comparison'] = next((r for r in usable if r['status']=='within_margin'),usable[0])
+                return report
             report['reference_comparison'] = (usable[0] if len(usable)==len(same) and len(statuses)==1 else
                                              {'status':'conflicting_or_incomplete_references','trusted_by_operator':trusted})
     elif errors:

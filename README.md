@@ -1,6 +1,6 @@
 # RelayLens
 
-A standalone, standard-library Python audit tool for GPT and Claude gateway claims. Version 0.7.0 makes capability the main rating: the default eight-question screen can earn A without an official reference. A different or stronger backend is not penalized for differing names, style or numeric behavior. Interface usability and identity signals remain visible separately. Four parallel workers, a 180-second collection budget, full suites and advanced evidence workflows are retained. Python 3.10+; no runtime dependencies. It measures observed capability and behavior, not private model identity.
+A standalone, standard-library Python audit tool for GPT and Claude gateways. Version 0.8.0 separates the selected model's target assessment from task screening. A Luna claim needs a Luna reference; a generic quiz score cannot certify Astra. The default is 16 questions, four workers and a 180-second collection budget. S requires conservative evidence of superiority against a trusted matched reference. Exact content and strict formatting are reported separately; partial component credit never raises the grade. Python 3.10+; no runtime dependencies.
 
 [中文完整使用说明](README.zh-CN.md)
 
@@ -14,9 +14,9 @@ python run_relaylens.py --list-targets
 python run_relaylens.py --base-url https://gateway.example/v1 --model gateway-alias --target-model gpt-6-astra --mode fast --out reports/candidate.json --html-out reports/candidate.html
 ```
 
-The wizard defaults to fast mode. Existing CLI scripts retain full execution unless `--mode fast` is supplied. Fast defaults: `--pack fast --task-rounds 1 --repeats 1 --concurrency 4 --time-budget 180`, high reasoning and a 32,768-token output ceiling. All remain configurable. `--mode full` retains the complete workflow without an overall deadline.
+The wizard defaults to fast mode. Existing CLI scripts retain full execution unless `--mode fast` is supplied. Fast defaults: `--pack fast --task-rounds 2 --repeats 1 --concurrency 4 --time-budget 180`, high reasoning and a 32,768-token output ceiling. All remain configurable. `--mode full` retains the complete workflow without an overall deadline.
 
-The budget bounds collection, not upstream completion: up to five seconds are reserved for cleanup and reporting. Unfinished tasks remain in the denominator, and partial results are saved. Closing a connection does not guarantee that upstream billing stops. Eight questions can earn a screening A/D; formal target comparison still requires adequate matched reference samples. The report visibly distinguishes these evidence bases.
+The budget bounds collection, not upstream completion: up to five seconds are reserved for cleanup and reporting. Unfinished tasks remain in the denominator, and partial results are saved. Closing a connection does not guarantee that upstream billing stops. Sixteen questions can earn a screening A/D; formal target comparison still requires adequate matched reference samples. The report visibly distinguishes these evidence bases.
 
 Keys are requested with hidden input or read from `RELAYLENS_API_KEY` / `RELAY_API_KEY` / `T8_API_KEY`. Existing `pip install -e .` and the `relaylens` console command remain supported.
 
@@ -24,7 +24,7 @@ API styles: `responses` (default), `chat` (Chat Completions), `messages` (native
 
 ## Evidence
 
-- `--pack fast` selects eight single-shot tasks: ordering, expression repair, constrained selection, probability, relational aggregation, context updates, frontend state and backend transactions. Selection is based on coverage, not measured model discrimination. Parameter, tool and catalog checks complete the default run.
+- `--pack fast` selects eight families with two fresh tasks each: ordering, expression repair, constrained selection, probability, relational aggregation, context updates, frontend state and backend transactions. Selection is based on coverage, not measured model discrimination. Parameter, tool and catalog checks complete the default run.
 - `--pack standard` preserves eight generated families: ordering logic, arithmetic, restricted-expression repair, strict instructions, shortest paths, scheduling optimization, context retrieval and state tracking.
 - `--pack challenge` retains those eight and adds constrained selection/counting, exact conditional probability, relational aggregation, versioned context retrieval, frontend asynchronous state and backend idempotent transactions. Available in advanced settings. These engineering tasks test semantics; they do not build or execute a full generated app.
 - Challenge context size is configurable with `--context-records 1024`. Character count and actual API usage are recorded separately; record counts are not advertised as token context size.
@@ -57,19 +57,19 @@ python run_relaylens.py --compare-report reports/candidate.json --reference-dir 
 
 Multiple matching references are reported as overlapping, never forced into a nearest-model identity. Different protocols remain incompatible: collect references in the actual protocol being audited. Do not place the candidate itself in the reference directory. Only mark all references trusted when you have verified their provenance. Baselines are not bundled or fabricated.
 
-- **A — capability screen passed:** strong performance worth trying on your real tasks. Default eight-question runs can earn A with 8/8 correct; no reference is required.
-- **B — broadly usable with gaps:** default 6–7/8 correct, or insufficient advanced coverage for A.
-- **C — capability concerns:** default 4–5/8 correct; review failures before paying for the claimed tier.
-- **D — clearly insufficient capability:** default fewer than 4/8 correct, or a calibrated deficit against a trusted target reference.
-- **Incomplete (U):** fewer than eight unique prompts, less than 90% completion or calibrated service degradation. Network failure does not imply weak reasoning.
+Target grades: **S** = conservatively above the selected trusted reference on this suite/configuration; **A** = within the predeclared loss margin; **D** = conservatively below reference; **U** = unverified/inconclusive, not low intelligence. At least 30 unique matched prompts are needed, often more. No official baselines are bundled or fabricated. Reference provenance is an explicit operator assertion, not authenticated by the tool. A higher raw score alone cannot award S. References remain scored using identical strict whole-task pass criteria on both sides.
 
-The eight-question boundaries assume complete answers. For larger/custom runs, screening A requires >=90% accuracy, >=75% per family, at least six families and four unique challenge questions. B requires >=75% overall but not A; C covers >=50% and <75%; D covers <50%. These are disclosed operational rules, not empirically calibrated model-IQ cutoffs or identity probabilities. Repeating one prompt cannot supply missing coverage.
+Separately, screening thresholds remain A >=90% fully correct content, >=75% per family, at least six families/four challenge prompts; B >=75%; C >=50%; D <50%. Under the default two-per-family design, A requires 16/16, B 12–15/16, C 8–11/16 and D fewer than eight correct. Fewer than eight unique questions or <90% completion is incomplete. These are operational screening rules, not per-model intelligence boundaries. Content may pass with surrounding prose only if it contains one unambiguous complete answer of exactly the expected types and values; strict format failure remains visible. Partial component scores are diagnostic only, never used to inflate grades.
 
-A trusted within-margin comparison yields A, and a calibrated below-reference result yields D. Those stronger target-specific findings still require at least 30 unique prompts; that requirement no longer gates a screening A. The evidence basis is displayed next to the conclusion. Better task performance is accepted even when identity/style differs; a higher raw score alone does not prove broad superiority.
+First-attempt Wilson intervals are descriptive and do not account for all template correlations. Short runs and different seeds cannot establish account degradation or model mixing. Latency, style and identity signals never change capability scores. Usability remains a separate panel.
 
-Numeric behavior shifts and parameter/tool failures no longer lower the capability grade. Their separate panels explain behavior differences and interface limitations; tool-dependent workflows still need working tools. The tool does not collect prices or invent value-for-money scores. Use capability results, actual workload reliability and your price to decide whether to continue.
+Review an old local built-in report without API calls, preserving its strict grades:
 
-Every grade leaves model identity **not established**. Names, token usage, latency, style and matching results do not prove private weights or rule out adaptive routing. Randomization cannot hide plaintext prompts from a gateway. See [methodology](docs/methodology.md), [threat model](docs/threat-model.md) and [anti-adaptation](docs/anti-adaptation.md).
+```text
+python run_relaylens.py --compare-report reports/old.json --review-content --out reports/reviewed.json --html-out reports/reviewed.html
+```
+
+Review validates regenerated prompt hashes and recorded answer hashes; it refuses missing answers, altered prompts or imported private code. It writes a separate file. Public measurement reports cannot reconstruct omitted answers. Full suites, repeat sampling, custom suites and all advanced workflows remain available. See the [methodology](docs/methodology.md) for comparison assumptions and [Chinese guide](README.zh-CN.md) for complete examples.
 
 ## Reports and routes
 

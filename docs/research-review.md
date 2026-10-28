@@ -59,3 +59,12 @@
 先固定题库版本、任务配置、margin 和 seed，在官方及中转各跑一次；更换未看过的 seed 再独立复测。不要看完结果再挑有利题目或阈值。把高、中、低预期能力的多个官方型号作为锚点；如果全部满分，继续增加独立难题，而不是把相同分数称为同一模型。不同时间重复可以观察变化，但当前面板不是完整的时间序列变点检测器。
 
 参考源分别使用各自的官方 Key；仅由中转站生成的“官方参考”不能成为已核实官方基线。官方 `high` 在不同型号上也不代表完全相同的内部计算量；报告结论始终只对所选调用设置成立。
+
+## 2026-10-28：少量题、目标等级与“账号降智”
+
+- [OpenAI Evaluation best practices](https://developers.openai.com/api/docs/guides/evaluation-best-practices) 强调任务相关、贴近实际分布的数据与明确评分规则，避免泛化分数替代实际用途。采用：目标型号与同配置参考配对，保留私有/留出题；不采用用另一模型自评给“真货概率”。
+- [Position: Don't use the CLT in LLM evals with fewer than a few hundred datapoints](https://arxiv.org/html/2503.01747v2) 讨论小样本下常规正态近似和 bootstrap 可能低估不确定性。采用：不把 8/16 道全对解释成目标认证；bootstrap 仅描述，正式结论继续用保守有界差距/精确二项上界。16 题只是减少单题影响，不是论文保证的充分样本量；生成题族相关性仍限制外推。
+- [OpenAI Reasoning guide](https://developers.openai.com/api/docs/guides/reasoning) 说明 reasoning effort 会影响推理投入，输出预算还包含推理 token。采用：保留 high、充足预算与截断证据；仅接受参数不能证明中转真的执行了参数。
+- [OpenAI Rate limits](https://developers.openai.com/api/docs/guides/rate-limits) 描述吞吐限额、用量等级及 429/503 错误；[模型选择说明](https://learn.chatgpt.com/docs/models) 解释型号与思考档。上述资料没有为“官方秘密降低特定账号智商，因此中转很便宜”提供证据。软件不能从价格、速度或两次不同题分数诊断账号状态；实际路由、额外提示、思考预算等需独立证据。没有发现证明不等于已经排除所有供应商行为。
+
+0.8.0 不改变答错的事实：只有唯一且完整正确的内容才计通过，严格格式原分保留，分项分仅解释错在哪里。目标 S 必须有可信的同题配对优势；A 表示在预设容差内，不是 100% 身份保证。没有可靠目标参考显示 U/未验证，避免把题库容易或偶然满分误包装成达到所选型号。

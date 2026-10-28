@@ -33,31 +33,27 @@ while prompt copies are omitted from public reports. This commitment records whi
 plaintext prompts from the gateway receiving them. Per-run tool names and fresh seeds reduce fixed-pattern
 routing, but no client-side randomization proves model identity.
 
-## Capability-first screening and decision labels (0.7.0)
+## Target-relative assessment and screening (0.8.0)
 
-The default eight questions cover logic, expression repair, optimization, probability, aggregation, versioned context, frontend state and backend transactions. Selection is based on coverage, not measured discrimination among specific frontier models. Four workers collect at most 12 requests by default, with a 180-second budget and up to five seconds reserved for shutdown/reporting. Custom suites or extra probes change these counts. High reasoning and the 32,768-token output ceiling remain. Terminating a worker bounds client waiting, not provider billing or completion.
+Fast mode now defaults to 16 questions: two independent seeds per family across the same eight families, four workers, at most 20 requests and a 180-second collection budget with up to five seconds reserved for cleanup. High effort and 32,768 output tokens remain; advanced controls and full-mode execution are unchanged. Fast speed is not evidence for or against capability.
 
-The primary letter now rates observed capability; it does not authenticate identity. A is reachable without a reference. Screening rules are explicit operational criteria:
+The target grade and the screening grade are separate. Target S/A/D require a usable, trusted, same-target paired reference. U means unverified or inconclusive, not low capability. Different selected targets are not mapped to a generic score cutoff. A perfect uncalibrated screen still has target U. S requires a conservative superiority bound, not merely higher observed accuracy. No reference is bundled or invented.
 
-- A: >=90% strict accuracy, >=75% in every family, at least six families and four unique challenge prompts.
-- B: >=75% overall when A's conditions are not met.
-- C: >=50% and <75% overall.
-- D: <50% overall.
-- U overrides screening for fewer than eight unique prompts or <90% completion. Missing and interrupted tasks remain in the denominator; repeated prompts do not supply independent coverage.
+Screening thresholds remain A >=90% fully correct content, >=75% per family, six families and four distinct challenge prompts; B >=75%; C >=50%; D <50%. At least eight unique prompts and 90% completion are needed. The default 16-question design therefore gives A only for 16/16, B for 12–15, C for 8–11 and D for 0–7. Duplicate prompt attempts do not increase coverage. No cutoff was lowered to make the results look better.
 
-For the default eight-question complete run, these become 8 correct for A, 6–7 for B, 4–5 for C and 0–3 for D. These thresholds are not official per-model IQ boundaries, calibrated probabilities, or a claim that an eight-question A proves equivalence to the selected model. The visible evidence basis says task screen versus trusted official comparison. A is advice to trial the demonstrated capabilities, not a guarantee of future performance or price-value; no actual price data is collected.
+`content-exact-1` adds a separate semantic review of built-in tasks while preserving the original strict grades. One unambiguous structured answer with surrounding prose can pass content, but fails the format contract. Duplicate keys, extra/missing fields, wrong types, multiple containers and truncated containers do not pass. Restricted code expressions use the existing AST grader. Diagnostic component scores recursively average child fields with equal weights at each container level; wrong shape/type receives zero. Probability and ordering stay indivisible. Component scores never enter the overall grade or reference inference. Custom task subclasses preserve their own graders.
 
-Trusted reference findings can override the screen: within-margin gives A, below-reference gives D and service degradation gives U. The existing minimum of 30 unique prompt clusters and all statistical assumptions still apply to those stronger reference conclusions. A different backend with equal or better measured capability is acceptable for this objective. Higher raw accuracy is retained but does not by itself establish general superiority.
+Formal reference comparison continues to use strict whole-task pass rates on both sides. This avoids mixing changed content rubrics with old reference grades. Offline content review reconstructs built-in tasks from recorded seed/settings, verifies every prompt hash and any answer hash, and preserves strict grades and original files. It cannot load code named by an imported report or reconstruct answers omitted from public exports.
 
-Tool/parameter results are separate usability advice. Numeric drift and other identity/behavior signals never reduce a capability grade. They remain available for users who also care about provenance. Task output-format failures still count, since following the requested output contract is itself measured capability.
-
-Full execution preserves all existing suites, repeats, probes and reference workflows without an overall deadline. Concurrency is a comparison setting; older reports normalize to one worker. Optional numeric references require matching concurrency too. Current rating policy is recorded as `capability-first-1`; existing task/reference data remain comparable when their task configuration matches.
+Policy `target-separated-2` keeps interface usability and behavioral identity clues separate. The report exposes strict/content counts, diagnostic component scores and descriptive first-attempt Wilson intervals. Same-template questions can remain correlated; these intervals are not target-equivalence probabilities. No price-value claim is calculated without actual pricing and workload measurements.
 
 ## Statistical interpretation
 
 Pass rates are estimates over this suite, not general intelligence scores. Wilson intervals for family counts are descriptive: repeated attempts are correlated, so they must not be interpreted as independent new questions. Paired bootstrap intervals cluster all repetitions of each unique task. At least 30 unique paired tasks are needed for a calibrated comparison.
 
 For each distinct prompt, average reference-minus-candidate success across its repeated pairs. These losses lie in [-1,1]. The one-sided lower bound is `mean_loss - sqrt(2*log(1/alpha)/n)` (Hoeffding). A deficit label requires this bound to exceed the margin both for end-to-end results and for at least 30 unique prompts where both endpoints completed; otherwise an end-to-end deficit is marked service degradation. Complete-case comparisons can have selection bias and are explicitly not a substitute for end-to-end results.
+
+Superiority (S) requires `mean_loss + sqrt(2*log(1/alpha)/n) < 0` for both the end-to-end paired loss and at least 30 unique prompts completed by both endpoints. The reference must meet the same usability and completion checks. A small point-score advantage is not enough. With multiple supplied target references, every comparison must support S; a mixture of within-margin and superior results yields A, and conflicting or incomplete results remain unverified. These tests rely on the stated sampling assumptions, not on guaranteed independence merely because hashes differ.
 
 Within-margin evidence requires the one-sided exact Clopper–Pearson upper bound on the fraction of prompts with positive mean loss to be no larger than `--loss-margin` (default 0.10). This sufficient condition ignores gains and loss sizes. Bootstrap intervals are descriptive only. The binomial interpretation assumes representative, independent prompt clusters and comparable repeat sampling; generated families are not a random sample of all intelligence tasks. Correlated templates, caching, adaptive routing and post-hoc selection weaken these assumptions. No population-wide IQ inference is justified.
 

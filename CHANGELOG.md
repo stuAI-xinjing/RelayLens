@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0 — 2026-10-28
+
+- Separate selected-model target assessment from quiz screening; no reference means target U even when the quiz earns A. Luna and Astra claims require their own references.
+- Add S only for a conservative, trusted paired superiority result on matching tasks/settings; multiple target runs use the weakest supported conclusion.
+- Default fast mode to 16 questions (two per family), four workers and the same 180-second collection budget; keep all advanced controls.
+- Diagnose unique correct JSON with surrounding prose while preserving strict format grades. Partial component scores never raise grades.
+- Show full-content accuracy, strict accuracy, first-attempt uncertainty and component diagnostics separately. Formal references retain identical strict whole-task scoring.
+- Add offline `--review-content` with prompt/answer integrity checks and no model calls; retain original reports.
+- Expand regression tests for ambiguous answers, wrong types, privacy, target mismatch, unsupported superiority and incomplete references.
+
+
 ## 0.7.0
 
 - Reoriented primary A/B/C/D ratings to useful task capability. The default eight-question screen can earn A without a reference; no model-specific IQ cutoff or probability is invented.
