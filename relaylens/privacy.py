@@ -37,6 +37,16 @@ def private_report(report: dict, secrets: tuple[str, ...] = ()) -> dict:
     result = redact(json.loads(json.dumps(report, ensure_ascii=False)), secrets)
     result.pop('egress',None)
     result.pop('network',None)
+    # Billing identifiers and OCR text can disclose account/user information.
+    # Public reports retain only aggregate measurements, never raw bills.
+    if isinstance(result.get('billing'),dict):
+        bill = result['billing']
+        result['billing'] = {k:v for k,v in bill.items() if k in
+            ('state','matched','coverage','total_requests','unmatched','ambiguous','fetch_state','import_state')
+            and (v is None or isinstance(v,(bool,int,float)) or k in ('state','fetch_state','import_state'))}
+    result.pop('billing_import',None)
+    if isinstance(result.get('token_audit'),dict): result['token_audit'].pop('requests',None)
+    for comparison in result.get('token_reference_panel',{}).get('comparisons',[]): comparison.pop('pairs',None)
     result['model_requested'] = '[gateway alias removed]'
     if 'models' in result:
         result['models'] = {k:v for k,v in result['models'].items() if k in ('http_status','transport_state','latency_ms')}

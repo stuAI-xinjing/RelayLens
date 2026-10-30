@@ -37,7 +37,8 @@ def _worker(config,job,path):
         return row['observed'],calls,context
     try:
         client = Client(args.base_url,args.api_key,api=args.api,route=args.route,proxy=args.proxy,
-                        timeout=args.timeout,max_tokens=args.max_output_tokens,chat_token_field=args.chat_token_field)
+                        timeout=args.timeout,max_tokens=args.max_output_tokens,chat_token_field=args.chat_token_field,counter_model=args.target_model or args.model,
+                        official_count_key_env=getattr(args,'official_count_key_env',None),stream_usage=getattr(args,'stream_usage',True))
         kind = job['kind']
         if kind=='egress':
             request=urllib.request.Request('https://ipinfo.io/json',headers={'User-Agent':'RelayLens'})
@@ -95,6 +96,9 @@ def collect(args,report,tasks):
     for repeat in range(args.repeats):
         shuffled=tasks[:]; random.Random(report['seed']+31+repeat).shuffle(shuffled)
         jobs += [{'kind':'task','id':t.id,'family':t.family,'task':t,'repeat':repeat} for t in shuffled]
+    from .token_counter import control_prompts
+    jobs += [{'kind':'token_control','id':'token-control-'+str(i),'family':'token_control','prompt':prompt}
+             for i,prompt in enumerate(control_prompts(report['seed'],getattr(args,'token_probes',0)))]
     jobs.append({'kind':'catalog'})
     if args.egress and not args.no_egress: jobs.append({'kind':'egress'})
     jobs += [{'kind':'fingerprint','id':f'fingerprint-{i}','family':'fingerprint','prompt':prompt,'repeat':j}
@@ -105,6 +109,8 @@ def collect(args,report,tasks):
     pending=list(enumerate(jobs)); active={}; outcomes={}; end_reason='completed'
     config={k:getattr(args,k) for k in ('base_url','api_key','api','route','proxy','timeout','max_output_tokens',
             'chat_token_field','model','target_model','task_effort','stream','fingerprint_temperature')}
+    config['stream_usage'] = getattr(args,'stream_usage',True)
+    config['official_count_key_env'] = getattr(args,'official_count_key_env',None)
     def read(path):
         try: return json.loads(path.read_text(encoding='utf-8'))
         except (ValueError,OSError): return {'rows':[],'finished':False}

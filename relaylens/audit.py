@@ -214,7 +214,8 @@ def run(args):
                 'mode':args.mode,'concurrency':args.concurrency if args.mode=='fast' else 1,
                 'chat_token_field':args.chat_token_field if args.api=='chat' else None}
     client = Client(args.base_url,args.api_key,api=args.api,route=args.route,proxy=args.proxy,
-                    timeout=args.timeout,max_tokens=args.max_output_tokens,chat_token_field=args.chat_token_field)
+                    timeout=args.timeout,max_tokens=args.max_output_tokens,chat_token_field=args.chat_token_field, counter_model=target_id,
+                    official_count_key_env=getattr(args,'official_count_key_env',None),stream_usage=getattr(args,'stream_usage',True))
     report = {'schema_version':'0.9','tool_version':__version__,'suite_version':suite_version,'suite_source':suite_source,'suite_commitment':commitment,
               'run_id':str(uuid.uuid4()),'started_at_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'base_url':client.base,
               'api_style':args.api,'model_requested':args.model,'target_model':target_id,'target':profile(target_id),
@@ -278,11 +279,16 @@ def run(args):
             client.call(args.model,probe['prompt'],effort=args.task_effort,
                         temperature=args.fingerprint_temperature,stream=args.stream))
         report['cases'][-1]['numeric_index'] = probe['index']
+    from .token_counter import control_prompts
+    for i,prompt in enumerate(control_prompts(seed,getattr(args,'token_probes',0))):
+        add('token-control-'+str(i),'token_control',prompt,client.call(args.model,prompt,effort=args.task_effort,stream=args.stream))
     report['run_state']={'mode':'full','end_reason':'completed','elapsed_seconds':round(time.monotonic()-started,2)}
     return finalize_report(report)
 
 
 def finalize_report(report):
+    from .token_audit import summarize_report
+    report['token_audit'] = summarize_report(report)
     report['numeric_summary'] = describe_numeric(report)
     report['task_summary'] = summary(report['cases'])
     report['diagnostics'] = diagnostics(report['cases'])
@@ -326,7 +332,21 @@ def main(argv=None):
     p.add_argument('--compare-report',help='离线重新比较已有报告，不调用API、不需要Key')
     p.add_argument('--trust-reference',action='store_true',help='你已自行核实参考报告来自所选官方模型；程序无法认证导入文件')
     p.add_argument('--loss-margin',type=float,default=.10,help='允许的参考能力损失比例，默认0.10')
+    p.add_argument('--stream-usage',action=argparse.BooleanOptionalAction,default=True,help='Chat 流式请求最终 usage；旧网关拒绝该字段时可 --no-stream-usage')
+    p.add_argument('--billing-session-stdin',action='store_true',help=argparse.SUPPRESS)
+    p.add_argument('--billing-ui',metavar='REPORT',help='打开已有报告的本地账单对账页面，无需 Codex')
+    p.add_argument('--bill-file',help='整份 CSV/JSON/截图账单，自动识别字段并对账')
+    p.add_argument('--billing-auto',action=argparse.BooleanOptionalAction,default=True,help='尝试同站 New API 只读 Key 日志接口')
+    p.add_argument('--official-count-key-env',help='可选官方 Key 的环境变量名，仅直连官方计数接口；不发送给中转')
+    p.add_argument('--token-probes',type=int,default=0,help='可选额外输入长度探针数量（建议6）；按站点计费，快检仍受总时限约束')
     args = p.parse_args(argv)
+    if args.billing_ui:
+        from .billing_ui import serve
+        import sys
+        session = json.loads(sys.stdin.read()) if args.billing_session_stdin else None
+        serve(args.billing_ui,session=session)
+        return 0
+    if args.token_probes < 0: p.error('token-probes must be >=0')
     if args.list_targets:
         print('\n'.join(f'{k}: {v["label"]} ({v["tier"]})' for k,v in TARGETS.items()))
         return 0
@@ -343,12 +363,20 @@ def main(argv=None):
         # Imported previous claims are never trusted or carried forward.
         report.pop('reference_panel',None); report.pop('reference_comparison',None)
         report.pop('numeric_reference_panel',None)
+        report.pop('token_reference_panel',None)
         report['task_summary'] = summary(report.get('cases',[]))
         report['numeric_summary'] = describe_numeric(report)
         report['quality_profile'] = quality_profile(report.get('cases',[]))
         apply_comparisons(report,[args.reference_report] if args.reference_report else [],args.reference_dir,
                           trusted=args.trust_reference,margin=args.loss_margin)
         report['verdict'] = verdict(report)
+        from .token_audit import summarize_report
+        report['token_audit'] = summarize_report(report)
+        if args.bill_file:
+            from .billing import import_billing_file, reconcile_billing
+            bill = import_billing_file(args.bill_file)
+            report['billing'] = reconcile_billing(report,bill.get('records',[]))
+            report['billing']['warnings'] += bill.get('warnings',[])
         return save_report(report,args)
     if args.review_content: p.error('--review-content requires --compare-report')
     if args.interactive or not args.base_url:
@@ -373,6 +401,17 @@ def main(argv=None):
     if not __import__('math').isfinite(args.time_budget) or args.time_budget<=0 or args.concurrency<1:
         p.error('time-budget必须为有限正数，concurrency必须>=1')
     report = run(args)
+    from .billing import fetch_key_billing, import_billing_file, reconcile_billing
+    if args.billing_auto and report.get('run_state',{}).get('end_reason')=='completed':
+        bill = fetch_key_billing(args.base_url,args.api_key,route=args.route,proxy=args.proxy or '',timeout=5)
+        report['billing'] = reconcile_billing(report,bill.get('records',[]))
+        report['billing']['fetch_state'] = bill.get('state')
+        report['billing']['warnings'] = report['billing'].get('warnings',[]) + bill.get('warnings',[])
+    if args.bill_file:
+        bill = import_billing_file(args.bill_file)
+        report['billing'] = reconcile_billing(report,bill.get('records',[]))
+        report['billing']['import_state'] = bill.get('state')
+        report['billing']['warnings'] = report['billing'].get('warnings',[]) + bill.get('warnings',[])
     if args.reference_report or args.reference_dir:
         apply_comparisons(report,[args.reference_report] if args.reference_report else [],args.reference_dir,
                           trusted=args.trust_reference,margin=args.loss_margin)
@@ -383,7 +422,7 @@ def main(argv=None):
 def save_report(report,args):
     # Scrub secrets even in local reports; retain the local endpoint and answers.
     from .reporting import clean_local, write_html
-    report = clean_local(report, (args.api_key or '',))
+    report = clean_local(report, (args.api_key or '',os.environ.get(getattr(args,'official_count_key_env',None) or '', '')))
     Path(args.out).parent.mkdir(parents=True,exist_ok=True)
     Path(args.out).write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     if args.public_out:
@@ -396,8 +435,22 @@ def save_report(report,args):
         html_path = args.html_out or str(Path(args.out).with_suffix('.html'))
         write_html(report,html_path)
         if args.open_report:
-            import webbrowser
-            webbrowser.open(Path(html_path).resolve().as_uri())
+            if getattr(args,'local_billing_ui',False):
+                import subprocess, sys
+                flags = subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0
+                process = subprocess.Popen([sys.executable,'-m','relaylens.audit',
+                    '--billing-ui',str(Path(args.out).resolve()),'--billing-session-stdin'],
+                    stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=flags,
+                    cwd=str(Path(__file__).resolve().parents[1]))
+                session = {'key':args.api_key or '', 'route':args.route, 'proxy':args.proxy or ''}
+                try:
+                    process.stdin.write(json.dumps(session).encode()); process.stdin.close()
+                except (BrokenPipeError,OSError):
+                    import webbrowser
+                    webbrowser.open(Path(html_path).resolve().as_uri())
+            else:
+                import webbrowser
+                webbrowser.open(Path(html_path).resolve().as_uri())
     if args.progress or args.interactive:
         result=report['verdict']
         print('\n目标能力：'+result.get('target_label','尚未验证'))

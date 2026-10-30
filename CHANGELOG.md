@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.0 — 2026-10-30
+
+- Add independent Token-consumption grades (甲＋ through 戊＋), separate from capability grades, using trusted matched-task references and disclosed bands.
+- Record request timestamps/IDs, normalize cache/reasoning counters without double counting, expose missing-field coverage and independent input estimates.
+- Optional direct official input counters and six user-selected length probes; no extra generation calls by default.
+- Auto-query supported New API key logs; import whole CSV/TSV/JSON/NDJSON or screenshot with local OCR and explicit uncertain-data review.
+- Add standalone localhost billing workspace, clear input/output/cache discrepancies, file drag/drop, official reference import and preserved original reports.
+- Suggest dedicated test Keys; keep credentials/raw bills/OCR outside saved and public reports.
+- Preserve existing 16-question defaults, advanced diagnostics and capability grading. Billing collection cannot hold an interrupted fast run open.
+
+
 ## 0.8.0 — 2026-10-28
 
 - Separate selected-model target assessment from quiz screening; no reference means target U even when the quiz earns A. Luna and Astra claims require their own references.

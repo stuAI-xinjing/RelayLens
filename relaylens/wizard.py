@@ -43,6 +43,7 @@ def configure(args):
     args.target_model = selected
     args.model = args.model or selected
     args.api = 'messages' if selected.startswith('claude-') else 'responses'
+    print('建议在中转站另建一个专用测试 Key，并只用于本次检测，便于准确匹配账单；也可继续使用现有 Key。')
     args.api_key = getpass.getpass('API Key（隐藏输入，仅本次使用）：').strip()
     advanced = getattr(args,'advanced',False)
     if not advanced:
@@ -53,6 +54,7 @@ def configure(args):
     args.out = ask('报告路径',str(Path('reports') / time.strftime('relaylens_%Y%m%d_%H%M%S.json'))) if advanced else str(Path('reports') / time.strftime('relaylens_%Y%m%d_%H%M%S.json'))
     args.html_out = str(Path(args.out).with_suffix('.html'))
     args.open_report = True
+    args.local_billing_ui = True
     args.progress = True
     if args.mode=='fast' and not advanced:
         print('\n开始快检，默认 16 道关键题、最多约 20 次请求、4 路并行、3 分钟采集预算。\n如使用了命令行参数，以参数为准。按站点实际计费；Ctrl+C 可停止采集并保留结果。\n')

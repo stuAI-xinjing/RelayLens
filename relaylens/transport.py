@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import datetime, timezone
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -39,17 +40,20 @@ def classify(status, error=""):
 
 
 class Client:
-    def __init__(self, base, key, api="responses", route="env", proxy="", timeout=60, max_tokens=4096, effort="", chat_token_field='max_completion_tokens'):
+    def __init__(self, base, key, api="responses", route="env", proxy="", timeout=60, max_tokens=4096, effort="", chat_token_field='max_completion_tokens', counter_model=None, official_count_key_env=None, stream_usage=True):
         self.base = normalize_base(base)
         self.key, self.api = key, api
         proxies = {"http": proxy,"https": proxy} if proxy else ({} if route == "direct" else None)
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxies), NoRedirect())
         self.timeout, self.max_tokens, self.effort = timeout, max_tokens, effort
         self.chat_token_field = chat_token_field
+        self.stream_usage = stream_usage
+        self.counter_model = counter_model
+        self.official_count_key_env = official_count_key_env
 
     def request(self, path, payload=None):
         url = self.base + path
-        headers = {"Content-Type":"application/json", "User-Agent":"RelayLens/0.7.0"}
+        headers = {"Content-Type":"application/json", "User-Agent":"RelayLens/0.9.0"}
         if self.api == "messages":
             headers.update({"x-api-key":self.key,"anthropic-version":"2023-06-01"})
         else:
@@ -60,6 +64,7 @@ class Client:
         try:
             with self.opener.open(req, timeout=self.timeout) as resp:
                 status = resp.status
+                request_id = resp.headers.get('x-request-id') or resp.headers.get('request-id')
                 first_byte = None
                 if payload and payload.get("stream"):
                     data, events, first_byte = self.read_stream(resp, start)
@@ -68,7 +73,7 @@ class Client:
                     data = json.loads(raw.decode("utf-8"))
                     events = []
             return {"http_status":status,"transport_state":"ok","latency_ms":round((time.perf_counter()-start)*1000,1),
-                    "first_token_ms":first_byte,"stream_events":events,"data":data}
+                    "first_token_ms":first_byte,"stream_events":events,"data":data,"request_id":request_id}
         except urllib.error.HTTPError as exc:
             message = exc.read().decode("utf-8",errors="replace")[:2000]
             try: message = json.loads(message).get("error", message)
@@ -180,9 +185,20 @@ class Client:
             if effort and effort != 'omit': payload["reasoning_effort"]=effort
             if tools: payload["tools"]=[{"type":"function","function":{k:v for k,v in t.items() if k != "type"}} for t in tools]
             path = "/chat/completions"
-        if stream: payload["stream"]=True
+        if stream:
+            payload["stream"]=True
+            if self.api == 'chat' and self.stream_usage: payload['stream_options'] = {'include_usage':True}
         if temperature is not None: payload['temperature'] = temperature
+        started_at = datetime.now(timezone.utc).isoformat()
         result = self.request(path, payload)
+        result['started_at_utc'] = started_at
+        result['finished_at_utc'] = datetime.now(timezone.utc).isoformat()
+        from .token_audit import measure_payload
+        result['token_measurement'] = measure_payload(payload,self.api,self.counter_model or model)
+        if self.official_count_key_env:
+            from .token_counter import official_input_count
+            result['token_measurement'] = official_input_count(payload,self.api,self.counter_model or model,
+                self.official_count_key_env,self.opener,min(self.timeout,15),result['token_measurement'])
         result["payload_hash"] = __import__("hashlib").sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()
         return result
 
@@ -191,7 +207,7 @@ def extract(result, api):
     try:
         return _extract(result,api)
     except (TypeError,ValueError,KeyError,AttributeError,IndexError) as exc:
-        row = {k:result.get(k) for k in ('http_status','latency_ms','first_token_ms','payload_hash')}
+        row = {k:result.get(k) for k in ('http_status','latency_ms','first_token_ms','payload_hash','started_at_utc','finished_at_utc','request_id','token_measurement')}
         row.update(transport_state='malformed_response',completed=False,incomplete=False,text='',
                    error='Response shape invalid: ' + type(exc).__name__)
         return row, [], None
@@ -235,7 +251,9 @@ def _extract(result, api):
     if isinstance(usage,dict):
         for details in (usage.get("output_tokens_details"),usage.get("completion_tokens_details"),usage):
             if isinstance(details,dict) and type(details.get("reasoning_tokens")) is int: rt = details["reasoning_tokens"]; break
-    row = {k:result.get(k) for k in ("http_status","transport_state","error","latency_ms","first_token_ms","stream_events","payload_hash")}
+    row = {k:result.get(k) for k in ("http_status","transport_state","error","latency_ms","first_token_ms","stream_events","payload_hash",
+            "started_at_utc","finished_at_utc","request_id","token_measurement")}
+    row['response_id'] = data.get('id')
     row.update(model_returned=data.get("model"),usage=usage,reasoning_tokens=rt,text=text,
                completed=result.get("transport_state") == "ok" and not incomplete and bool(text or calls),
                incomplete=incomplete)

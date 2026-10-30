@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "relaylens"
-version = "0.8.0"
+version = "0.9.0"
 description = "Reproducible black-box audits for OpenAI-compatible model gateways"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,3 +14,9 @@ dependencies = []
 
 [project.scripts]
 relaylens = "relaylens.audit:main"
+
+[project.optional-dependencies]
+tokenizer = ["tiktoken>=0.8"]
+
+[tool.setuptools.package-data]
+relaylens = ["*.ps1"]

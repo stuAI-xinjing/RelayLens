@@ -90,6 +90,7 @@ def write_html(report,path):
         numeric_rows += f'<tr><td>{esc(row.get("target_model"))}</td><td>{esc(label)}</td><td>{esc(row.get("paired_requests","—"))}</td><td>{"—" if pvalue is None else f"{pvalue:.4f}"}</td></tr>'
     if not numeric_rows: numeric_rows = '<tr><td colspan="4">尚无可比较的数字序列参考。</td></tr>'
     numeric_evidence = esc(json.dumps(report.get('numeric_reference_panel',numeric),ensure_ascii=False,indent=2))
+    token_section = token_html(report)
     document = f'''<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>RelayLens 中转透镜</title>
 <style>body{{font:15px/1.6 system-ui,"Microsoft YaHei",sans-serif;background:#f3f6fa;color:#203049;margin:0}}main{{max-width:1200px;margin:auto;padding:28px}}.card{{background:white;padding:24px;border:1px solid #dce3ec;border-radius:14px;margin:16px 0}}h1{{margin-bottom:4px}}h2{{font-size:18px}}.grade{{font-size:28px;color:#2254aa}}.muted{{color:#627087}}table{{width:100%;border-collapse:collapse}}td,th{{text-align:left;padding:10px;border-bottom:1px solid #e4e9f0}}pre{{white-space:pre-wrap;overflow-wrap:anywhere}}.scroll{{overflow:auto}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}}.grid>.card{{margin:0}}meter{{width:100px}}summary{{cursor:pointer;font-weight:600}}.hero{{border-left:6px solid #d29a16}}.status-S,.status-A,.status-B{{border-left-color:#16815b}}.status-D{{border-left-color:#c93a3a}}.status-U{{border-left-color:#79859a}}.status-S .grade,.status-A .grade,.status-B .grade{{color:#126b4b}}.status-D .grade{{color:#ac2929}}.action{{background:#f3f6fa;padding:14px;border-radius:9px}}@media(max-width:600px){{main{{padding:10px}}.card{{padding:15px}}}}</style>
 <main><h1>RelayLens · 中转透镜</h1><p class="muted">{esc(mode_label)} · 目标 {esc(report.get('target_model'))}</p>
@@ -97,6 +98,7 @@ def write_html(report,path):
 <div class="grid">{metrics}</div><p class="muted">{esc(verdict.get("sample_note",""))} 内容全对率的首轮 Wilson 95% 描述区间：{esc("—" if not quality.get("content_wilson_95_first_attempt") else " ～ ".join(percent(v) for v in quality["content_wilson_95_first_attempt"]))}。同类题可能相关；这不是达到目标的概率。</p>
 <div class="grid"><section class="card"><h2>接口可用性</h2><p>{esc(usability_text)}</p><ul>{usability_notes}</ul></section><section class="card"><h2>身份与行为线索 · 不计入能力等级</h2><p>{esc(identity.get('summary','未记录身份线索。'))}</p></section></div>
 <section class="card"><details {"open" if panel.get('comparisons') else ""}><summary>官方参考对照 · {"已提供" if panel.get('comparisons') else "未提供"}</summary><p>正式对照保留严格整题评分（含格式），不使用分项分数。差距为“参考正确率 − 本次正确率”，正数表示本次更低。多个型号都相符时，题库尚不能区分它们。</p><div class="scroll"><table><tr><th>参考型号</th><th>比较结果</th><th>独立题数</th><th>平均差距</th></tr>{panel_rows}</table></div></details></section>
+{token_section}
 <section class="card"><h2>任务能力 · 失败和截断计入总数</h2><div class="scroll"><table><tr><th>类别</th><th>内容全对/计划（严格通过）</th><th>完成</th><th>正确率</th></tr>{family_rows}</table></div></section>
 <section class="card" {"hidden" if numeric.get('status') in (None,'not_requested') else ""}><h2>数字序列行为指纹 · 可选辅助证据</h2><p>{esc(numeric_labels.get(numeric.get('status'), '未启用'))}；有效回答 {esc(numeric.get('valid_requests',0))} / {esc(numeric.get('planned_requests',0))} 次。一次回答是一个样本，数组中的整数不算独立请求。该项不计入能力分数。</p><div class="scroll"><table><tr><th>参考型号</th><th>行为结果</th><th>配对请求</th><th>置换 p 值</th></tr>{numeric_rows}</table></div><p class="muted">p 值不是“真模型概率”。提示词、采样、时间变化也可能造成差异；没有检出差异不能排除混用。</p><details><summary>查看检验依据与无效回答原因</summary><pre>{numeric_evidence}</pre></details></section>
 <div class="grid"><section class="card"><h2>可信参考与能力差距</h2><details><summary>查看统计依据</summary><pre>{comparison}</pre></details></section><section class="card"><h2>多轮稳定性与混用线索</h2><details><summary>查看重复结果</summary><pre>{stability}</pre></details><p class="muted">同题波动、名称变化可能由路由、采样、缓存或限额引起，需复测。</p></section></div>
@@ -104,3 +106,53 @@ def write_html(report,path):
 <section class="card"><details><summary>逐次请求证据与原始回答</summary><p>请求 ID {esc(report.get('model_requested'))} · {esc(report.get('api_style'))} · seed {esc(report.get('seed'))}</p><div class="scroll"><table><tr><th>测试</th><th>HTTP</th><th>结果</th><th>内容诊断</th><th>返回名称</th><th>错误</th><th>原文</th></tr>{''.join(case_rows)}</table></div></details></section><p class="muted">本页含本地回答内容；分享时使用 --public-out 导出的脱敏 JSON。</p></main></html>'''
     Path(path).parent.mkdir(parents=True,exist_ok=True)
     Path(path).write_text(document,encoding='utf-8')
+
+
+def token_html(report):
+    """Independent raw-token accounting; deliberately separate from capability."""
+    esc = lambda v: html.escape(str(v))
+    audit = report.get('token_audit',{})
+    totals = audit.get('totals',{})
+    coverage = audit.get('coverage',{})
+    def amount(key):
+        value = totals.get(key)
+        if value is not None: return f'{value:,.0f}'
+        known = coverage.get(key,{})
+        subtotal = known.get('known_subtotal')
+        return '未上报' if subtotal is None else f'已知 {subtotal:,.0f}（{known.get("known_requests",0)}/{known.get("total_requests",0)} 次）'
+    table = ''.join(f'<tr><td>{label}</td><td>{esc(amount(key))}</td></tr>' for key,label in (
+        ('input_tokens','输入总量（含缓存）'),('output_tokens','输出总量（含隐藏推理）'),
+        ('cache_read_tokens','其中：缓存读取'),('cache_write_tokens','其中：缓存写入'),('reasoning_tokens','其中：隐藏推理')))
+    statuses = {'compared':'已完成同题对照','incompatible':'题目、型号或配置不一致','untrusted_reference':'官方参考来源尚未核实',
+        'task_coverage_mismatch':'两侧任务覆盖不一致','task_mismatch':'任务内容不一致','quality_not_comparable':'两侧答案质量尚不可比',
+        'missing_or_inconsistent_usage':'用量字段缺失或自相矛盾','invalid_zero_usage':'存在零用量异常',
+        'cache_evidence_missing':'缓存证据缺失','cache_cohort_mismatch':'缓存状态不同','invalid_report':'参考报告无效'}
+    comparisons = report.get('token_reference_panel',{}).get('comparisons',[])
+    grades = ''.join(f'<p><b>{esc(r.get("grade") or "待对照")} · {esc(r.get("label") or statuses.get(r.get("status"),r.get("status")))}</b>'
+        + (f' · 官方同题消耗的 {r["ratio"]:.2f} 倍 · {r.get("matched_tasks",0)} 次配对' if r.get('ratio') is not None else '') + '</p>' for r in comparisons)
+    if not grades: grades = '<p><b>Token 消耗评级：待对照</b> · 尚无可信同题官方用量参考。</p>'
+    independent = audit.get('independent_input',{})
+    independent_text = '独立输入计数尚不可用。'
+    if independent.get('input_tokens') is not None:
+        source = '官方计数接口' if independent.get('all_official_counts') else '本机估算，不能据此认定虚报'
+        independent_text = f'独立输入计数：{independent["input_tokens"]:,.0f}（{source}；覆盖 {independent.get("known_requests",0)}/{independent.get("total_requests",0)} 次）。'
+    slope = audit.get('multiplier',{})
+    slope_labels = {'insufficient_samples':'有效长度样本不足','descriptive_only':'仅描述趋势；计数或控制条件不足',
+        'proportional_excess_signal':'检出输入随长度成比例偏高的线索，需结合账单复核',
+        'no_proportional_excess_observed':'本次未检出比例偏高；不等于证明账单真实'}
+    slope_text = slope_labels.get(slope.get('status'),'尚未采集')
+    if slope.get('slope') is not None:
+        slope_text += f'；斜率 {slope["slope"]:.3f}，固定差额估计 {slope["intercept_tokens"]:.0f} token'
+    bill = report.get('billing',{})
+    bill_text = '尚未完成后台对账；在本地账单页面连接支持的接口，或导入整份账单。'
+    if bill:
+        cov = bill.get('coverage')
+        bill_text = f'账单匹配：{bill.get("matched",0)} 次'
+        if isinstance(cov,(int,float)): bill_text += f'，覆盖 {cov:.0%}'
+        bill_text += '。接口和后台同属站方数据，彼此一致仍不代表上游真实计量。'
+    return f'''<section class="card" id="token-audit"><h2>Token 消耗 · 独立于能力 S/A/B/C/D</h2>{grades}
+<p class="muted">甲＋极少 / 甲少很多 / 乙少一些 / 丙平均 / 丁多一些 / 戊多很多 / 戊＋极多。比较原始 token 数量，缓存折扣和实际金额单列。</p>
+<div class="scroll"><table><tr><th>接口上报用量</th><th>本轮合计</th></tr>{table}</table></div>
+<p>{esc(independent_text)}</p><p>{esc(slope_text)}</p><p>{esc(bill_text)}</p><p class="muted">本机计数无需大模型；未知 tokenizer 为估算，不能当成真实计费值。隐藏推理和中转追加内容无法从可见回答完全还原。</p>
+<details><summary>消费等级标准与完整证据</summary><p>同题配对比值的几何平均 R：甲＋ 0&lt;R&lt;0.2；甲 0.2≤R&lt;0.6；乙 0.6≤R&lt;0.9；丙 0.9≤R≤1.1；丁 1.1&lt;R≤2；戊 2&lt;R&lt;3；戊＋ R≥3。这是公开的产品分段，不是科学认证标准。缺数据、零用量、截断或答案质量不足不会评成甲＋。</p>
+<pre>{esc(json.dumps({'accounting':audit,'consumption':comparisons,'billing':bill},ensure_ascii=False,indent=2))}</pre></details></section>'''

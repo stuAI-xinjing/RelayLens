@@ -1,5 +1,14 @@
 # RelayLens
 
+## 0.9.0 · 独立 Token 消耗与账单核对
+
+无需 Codex 或额外大模型：记录用量、独立输入估算、输入长度倍率线索、自动 New API 账单查询、整份文件导入和可选本机截图 OCR。双击向导结束后打开本机核账页面，建议使用专用测试 Key。
+
+甲＋/甲/乙/丙/丁/戊/戊＋只评价相对 Token 消耗，独立于能力等级；没有可信官方同题参考时显示“待对照”。缓存量、隐藏推理与金额分开，缺数据不算零。默认不新增付费题目。
+
+[使用方法、等级范围和支持边界](docs/TOKEN_AUDIT.md)。已有报告：`python run_relaylens.py --billing-ui reports/example.json`。
+
+
 A standalone, standard-library Python audit tool for GPT and Claude gateways. Version 0.8.0 separates the selected model's target assessment from task screening. A Luna claim needs a Luna reference; a generic quiz score cannot certify Astra. The default is 16 questions, four workers and a 180-second collection budget. S requires conservative evidence of superiority against a trusted matched reference. Exact content and strict formatting are reported separately; partial component credit never raises the grade. Python 3.10+; no runtime dependencies.
 
 [中文完整使用说明](README.zh-CN.md)

@@ -56,6 +56,9 @@ def apply_comparisons(report, paths=(), directory=None, *, trusted=False, margin
         try: references.append(read_report(path))
         except (ValueError,TypeError,OSError,RecursionError) as exc:
             errors.append({'status':'error','error':f'{type(exc).__name__}: {exc}'})
+    from .token_audit import compare_consumption
+    report['token_reference_panel'] = {'comparisons':[compare_consumption(report,ref,trusted=trusted) for ref in references],
+                                        'load_errors':errors}
     if references:
         panel = compare_panel(report,references,trusted=trusted,margin=margin)
         panel['load_errors'] = errors
