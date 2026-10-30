@@ -6,4 +6,5 @@ __pycache__/
 .venv/
 .env
 reports/
+_personal_billing_ai.py
 *.zip

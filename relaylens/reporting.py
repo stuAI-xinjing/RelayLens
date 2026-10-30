@@ -112,17 +112,17 @@ def token_html(report):
     """Independent raw-token accounting; deliberately separate from capability."""
     esc = lambda v: html.escape(str(v))
     audit = report.get('token_audit',{})
+    from .token_display import format_tokens, token_rows
     totals = audit.get('totals',{})
     coverage = audit.get('coverage',{})
     def amount(key):
         value = totals.get(key)
-        if value is not None: return f'{value:,.0f}'
+        if value is not None: return format_tokens(value)
         known = coverage.get(key,{})
         subtotal = known.get('known_subtotal')
         return '未上报' if subtotal is None else f'已知 {subtotal:,.0f}（{known.get("known_requests",0)}/{known.get("total_requests",0)} 次）'
-    table = ''.join(f'<tr><td>{label}</td><td>{esc(amount(key))}</td></tr>' for key,label in (
-        ('input_tokens','输入总量（含缓存）'),('output_tokens','输出总量（含隐藏推理）'),
-        ('cache_read_tokens','其中：缓存读取'),('cache_write_tokens','其中：缓存写入'),('reasoning_tokens','其中：隐藏推理')))
+    table = ''.join(f'<tr><td>{esc(row["label"])}</td><td>{esc(row["display"] if row["value"] is not None else amount(row["field"]))}</td></tr>'
+                    for row in token_rows(audit))
     statuses = {'compared':'已完成同题对照','incompatible':'题目、型号或配置不一致','untrusted_reference':'官方参考来源尚未核实',
         'task_coverage_mismatch':'两侧任务覆盖不一致','task_mismatch':'任务内容不一致','quality_not_comparable':'两侧答案质量尚不可比',
         'missing_or_inconsistent_usage':'用量字段缺失或自相矛盾','invalid_zero_usage':'存在零用量异常',
@@ -150,6 +150,12 @@ def token_html(report):
         bill_text = f'账单匹配：{bill.get("matched",0)} 次'
         if isinstance(cov,(int,float)): bill_text += f'，覆盖 {cov:.0%}'
         bill_text += '。接口和后台同属站方数据，彼此一致仍不代表上游真实计量。'
+    summary = report.get('billing_summary') or {}
+    if summary:
+        summary_label = {'within_display_precision':'汇总数值在显示精度范围内一致',
+                         'aggregate_difference':'汇总数值存在差异',
+                         'not_comparable':'汇总范围或字段不足，暂不能比较'}.get(summary.get('status'), '汇总待核对')
+        bill_text += ' 汇总核对：' + summary_label + '。仅比较汇总值，时间和 Key 范围未独立核实。'
     return f'''<section class="card" id="token-audit"><h2>Token 消耗 · 独立于能力 S/A/B/C/D</h2>{grades}
 <p class="muted">甲＋极少 / 甲少很多 / 乙少一些 / 丙平均 / 丁多一些 / 戊多很多 / 戊＋极多。比较原始 token 数量，缓存折扣和实际金额单列。</p>
 <div class="scroll"><table><tr><th>接口上报用量</th><th>本轮合计</th></tr>{table}</table></div>

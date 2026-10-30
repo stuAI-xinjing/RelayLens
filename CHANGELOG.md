@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.1 — 2026-10-30
+
+- Parse pasted model-summary tables and dashboard totals; preserve decimal K/M rounding intervals and deduplicate repeated sections.
+- Show integer, K and M counts together, with cache/reasoning subsets kept separate.
+- Compare aggregate values without inventing request-level matches or verified key/time scope; keep consumption and capability ratings unchanged.
+- Add optional extraction-backend hook. Model-proposed numbers require source quotes; image-derived comparisons are provisional and explicitly reviewable. No analysis credentials or private adapters ship in this release.
+- Improve failed billing-connection explanations and preserve deterministic imports when the analysis backend fails.
+
+
 ## 0.9.0 — 2026-10-30
 
 - Add independent Token-consumption grades (甲＋ through 戊＋), separate from capability grades, using trusted matched-task references and disclosed bands.

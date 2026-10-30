@@ -45,6 +45,7 @@ def private_report(report: dict, secrets: tuple[str, ...] = ()) -> dict:
             ('state','matched','coverage','total_requests','unmatched','ambiguous','fetch_state','import_state')
             and (v is None or isinstance(v,(bool,int,float)) or k in ('state','fetch_state','import_state'))}
     result.pop('billing_import',None)
+    result.pop('billing_summary',None)
     if isinstance(result.get('token_audit'),dict): result['token_audit'].pop('requests',None)
     for comparison in result.get('token_reference_panel',{}).get('comparisons',[]): comparison.pop('pairs',None)
     result['model_requested'] = '[gateway alias removed]'
