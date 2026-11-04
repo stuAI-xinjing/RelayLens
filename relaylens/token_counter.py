@@ -40,10 +40,18 @@ def official_input_count(payload, api, model, key_env, opener, timeout, fallback
 
 
 def control_prompts(seed, count):
-    """Fixed-purpose, differing-length probes; not additional intelligence tasks."""
+    """Three lengths, repeated identical payloads in randomized order.
+
+    Seeded data prevents a single public fixed prompt becoming the whole test.
+    Counts still need an independent tokenizer/counter; characters are not tokens.
+    """
     import random
     rng = random.Random(seed)
-    for i in range(count):
-        size = (256,1024,4096)[i % 3]
+    prompts = []
+    for size in (256,2048,16384):
         words = [''.join(rng.choices('abcdefghjkmnpqrstuvwxyz',k=8)) for _ in range(size//8)]
-        yield 'Read this inert list. Reply with ONLY OK.\n' + ' '.join(words)
+        prompts.append('Read this inert list. Reply with ONLY OK.\n' + ' '.join(words))
+    order = [i % 3 for i in range(count)]
+    rng.shuffle(order)
+    for index in order:
+        yield prompts[index]

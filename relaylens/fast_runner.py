@@ -99,6 +99,8 @@ def collect(args,report,tasks):
     from .token_counter import control_prompts
     jobs += [{'kind':'token_control','id':'token-control-'+str(i),'family':'token_control','prompt':prompt}
              for i,prompt in enumerate(control_prompts(report['seed'],getattr(args,'token_probes',0)))]
+    if getattr(args, 'usage_only', False):
+        jobs = [job for job in jobs if job['kind'] == 'token_control']
     jobs.append({'kind':'catalog'})
     if args.egress and not args.no_egress: jobs.append({'kind':'egress'})
     jobs += [{'kind':'fingerprint','id':f'fingerprint-{i}','family':'fingerprint','prompt':prompt,'repeat':j}
@@ -174,6 +176,6 @@ def collect(args,report,tasks):
     report['tool_summary'].update(rounds=tools,documented_expectation=tool_expected(report.get('target_model'),args.api))
     report['run_state']={'mode':'fast','end_reason':end_reason,'elapsed_seconds':round(time.monotonic()-started,2),
         'time_budget_seconds':args.time_budget,'planned_questions':len(tasks)*args.repeats,
-        'planned_requests_max':len(jobs)+args.repeats,'completed_jobs':sum(bool(x.get('finished')) for x in outcomes.values()),
+        'planned_requests_max':len(jobs)+sum(job['kind']=='tool' for job in jobs),'completed_jobs':sum(bool(x.get('finished')) for x in outcomes.values()),
         'planned_jobs':len(jobs),'concurrency':args.concurrency}
     return report

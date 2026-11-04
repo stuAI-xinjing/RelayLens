@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.0 — 2026-11-04
+
+- Add a dedicated usage-only workflow: three randomized input lengths, repeated identical requests, and the existing bounded fast runner. Keep capability checks unchanged.
+- Separate invalid counters, repeat instability, cache variation, input-slope evidence and hidden-output accounting; never promote character estimates into billing truth.
+- Publish research references and limitations for Veridrop, RelayRadar, PALACE and CoIn.
+- Make Windows launchers verify Python actually runs, with an existing bundled-runtime fallback when installed launchers are stale.
+- Preserve personal analysis credentials and publish no personal adapters, bills or screenshots.
+
+
 ## 0.9.1 — 2026-10-30
 
 - Parse pasted model-summary tables and dashboard totals; preserve decimal K/M rounding intervals and deduplicate repeated sections.

@@ -220,6 +220,9 @@ def run(args):
               'run_id':str(uuid.uuid4()),'started_at_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'base_url':client.base,
               'api_style':args.api,'model_requested':args.model,'target_model':target_id,'target':profile(target_id),
               'seed':seed,'settings':settings,'network':{'route':args.route,'proxy_configured':bool(args.proxy)},'cases':[]}
+    report['audit_purpose'] = 'token_usage' if getattr(args,'usage_only',False) else 'capability'
+    if getattr(args,'token_probes',0):
+        report['settings']['token_probes'] = args.token_probes
     if args.mode=='fast':
         from .fast_runner import collect
         collect(args,report,fn(seed,args.task_rounds) if args.task_rounds else [])
@@ -339,6 +342,7 @@ def main(argv=None):
     p.add_argument('--billing-auto',action=argparse.BooleanOptionalAction,default=True,help='尝试同站 New API 只读 Key 日志接口')
     p.add_argument('--official-count-key-env',help='可选官方 Key 的环境变量名，仅直连官方计数接口；不发送给中转')
     p.add_argument('--token-probes',type=int,default=0,help='可选额外输入长度探针数量（建议6）；按站点计费，快检仍受总时限约束')
+    p.add_argument('--usage-only',action='store_true',help='独立用量专项：默认9次、3档长度重复；复用快检时限，不运行能力题或给能力评级')
     args = p.parse_args(argv)
     if args.billing_ui:
         from .billing_ui import serve
@@ -358,7 +362,7 @@ def main(argv=None):
         if args.review_content: report = review_report(report)
         if any('grade' in r for r in report.get('cases',[]) if isinstance(r,dict)):
             checked_rows(report)
-        elif not report.get('settings',{}).get('numeric_samples'):
+        elif not report.get('settings',{}).get('numeric_samples') and report.get('audit_purpose') != 'token_usage':
             p.error('报告没有任务评分或数字探针')
         # Imported previous claims are never trusted or carried forward.
         report.pop('reference_panel',None); report.pop('reference_comparison',None)
@@ -382,6 +386,10 @@ def main(argv=None):
     if args.interactive or not args.base_url:
         from .wizard import configure
         args = configure(args)
+    if args.usage_only:
+        args.mode = 'fast'
+        args.task_rounds = 0
+        args.token_probes = args.token_probes or 9
     defaults={'pack':'fast' if args.mode=='fast' else 'standard','task_rounds':2 if args.mode=='fast' else 3,
               'context_records':128 if args.mode=='fast' else 1024,'timeout':180 if args.mode=='fast' else 60,
               'max_output_tokens':32768 if args.mode=='fast' else 1200,'stream':args.mode=='fast'}
@@ -389,7 +397,7 @@ def main(argv=None):
         if getattr(args,key) is None: setattr(args,key,value)
     if not args.model:
         p.error('--model is required')
-    if args.quick:
+    if args.quick and not args.usage_only:
         args.mode='full'
         args.task_rounds, args.repeats, args.efforts, args.fingerprint_samples = 0, 1, ['high'], 0
         args.numeric_samples = 0

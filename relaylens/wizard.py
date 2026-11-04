@@ -47,7 +47,9 @@ def configure(args):
     args.api_key = getpass.getpass('API Key（隐藏输入，仅本次使用）：').strip()
     advanced = getattr(args,'advanced',False)
     if not advanced:
-        advanced = ask('回车开始快检；如需调整接口、模型别名或完整检测，输入 A','').lower()=='a'
+        choice = ask('回车开始能力快检；T=用量专项；A=高级设置','').lower()
+        advanced = choice == 'a'
+        args.usage_only = getattr(args,'usage_only',False) or choice == 't'
     args.mode = 'fast'
     if advanced:
         args = advanced_settings(args)
@@ -56,7 +58,9 @@ def configure(args):
     args.open_report = True
     args.local_billing_ui = True
     args.progress = True
-    if args.mode=='fast' and not advanced:
+    if getattr(args,'usage_only',False):
+        print('\n开始用量专项：默认3档输入各重复3次，共9次模型请求；3分钟采集预算，按站点实际计费。\n保留所选模型及思考档；没有独立计数基准时不把字符估算当真实倍率。\n')
+    elif args.mode=='fast' and not advanced:
         print('\n开始快检，默认 16 道关键题、最多约 20 次请求、4 路并行、3 分钟采集预算。\n如使用了命令行参数，以参数为准。按站点实际计费；Ctrl+C 可停止采集并保留结果。\n')
     else:
         print(f'\n开始{ "限时快速" if args.mode=="fast" else "完整" }检测，使用你选择的设置；按实际请求计费。\n')

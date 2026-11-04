@@ -148,6 +148,7 @@ def consumption_grade(ratio):
 
 
 def summarize_report(report):
+    from .usage_diagnostics import analyze
     api = report.get('api_style', 'responses')
     rows, observations, controlled_observations = [], [], []
     for case in report.get('cases', []):
@@ -174,7 +175,7 @@ def summarize_report(report):
                    'all_official_counts':bool(measured) and all(m.get('method')=='official_input_count' for m in measured),
                    'all_exact':bool(measured) and all(m.get('exact') is True for m in measured),
                    'methods':sorted({m.get('method','unknown') for m in measured})}
-    return {'independent_input':independent,'version':VERSION, 'status':'recorded' if rows else 'no_requests', 'source':'provider_reported',
+    return {'independent_input':independent,'usage_checks':analyze(report),'version':VERSION, 'status':'recorded' if rows else 'no_requests', 'source':'provider_reported',
             'request_count':len(rows), 'totals':sums, 'coverage':coverage, 'requests':rows,
             'multiplier':fit_multiplier(observations), 'consumption_grade':None,
             'grade_status':'official_matched_reference_required',

@@ -52,7 +52,7 @@ def write_html(report,path):
                       'partially_checked':'部分接口检查未记录，请结合实际用途确认。'}.get(usability.get('status'),'未记录接口检查。')
     identity = verdict.get('identity_signal',{})
     elapsed=report.get('run_state',{}).get('elapsed_seconds')
-    mode_label='限时快速检查' if report.get('run_state',{}).get('mode')=='fast' else '完整检测'
+    mode_label='用量专项（未测试能力）' if report.get('audit_purpose')=='token_usage' else '限时快速检查' if report.get('run_state',{}).get('mode')=='fast' else '完整检测'
     screening=verdict.get('screen_grade',verdict['grade'])
     grade_name=screening if screening!='U' else '—'
     screen_label=({'A':'本轮能力达标，值得试用','B':'基本可用，仍有短板','C':'本轮答题存在失误',
@@ -113,6 +113,11 @@ def token_html(report):
     esc = lambda v: html.escape(str(v))
     audit = report.get('token_audit',{})
     from .token_display import format_tokens, token_rows
+    checks = audit.get('usage_checks') or {}
+    check_html = '<h3>' + esc(checks.get('label','用量证据待采集')) + '</h3>'
+    check_html += '<p>受控请求 ' + esc(checks.get('usable_controls',0)) + '/' + esc(checks.get('control_requests',0)) + '；有重复观测的相同请求组 ' + esc(checks.get('repeated_payload_groups',0)) + '。</p>'
+    check_html += ''.join('<p class="muted">'+esc(reason)+'</p>' for reason in checks.get('reasons',[]))
+    check_html += '<p class="muted">' + esc(checks.get('note','')) + '</p>'
     totals = audit.get('totals',{})
     coverage = audit.get('coverage',{})
     def amount(key):
@@ -156,7 +161,7 @@ def token_html(report):
                          'aggregate_difference':'汇总数值存在差异',
                          'not_comparable':'汇总范围或字段不足，暂不能比较'}.get(summary.get('status'), '汇总待核对')
         bill_text += ' 汇总核对：' + summary_label + '。仅比较汇总值，时间和 Key 范围未独立核实。'
-    return f'''<section class="card" id="token-audit"><h2>Token 消耗 · 独立于能力 S/A/B/C/D</h2>{grades}
+    return f'''<section class="card" id="token-audit"><h2>Token 消耗 · 独立于能力 S/A/B/C/D</h2>{check_html}{grades}
 <p class="muted">甲＋极少 / 甲少很多 / 乙少一些 / 丙平均 / 丁多一些 / 戊多很多 / 戊＋极多。比较原始 token 数量，缓存折扣和实际金额单列。</p>
 <div class="scroll"><table><tr><th>接口上报用量</th><th>本轮合计</th></tr>{table}</table></div>
 <p>{esc(independent_text)}</p><p>{esc(slope_text)}</p><p>{esc(bill_text)}</p><p class="muted">本机计数无需大模型；未知 tokenizer 为估算，不能当成真实计费值。隐藏推理和中转追加内容无法从可见回答完全还原。</p>
